@@ -55,6 +55,44 @@ export const api = {
     localStorage.removeItem('funrun_user');
   },
 
+  // Cross-device sync: Uploads any locally created challenges/activities to shared server
+  async syncLocalData(): Promise<void> {
+    try {
+      const raw = localStorage.getItem('besok_lari_local_db_v1');
+      const currentUser = this.getCurrentUser();
+      const localUsers = currentUser ? [currentUser] : [];
+
+      if (raw) {
+        const localDb = JSON.parse(raw);
+        const groups = localDb.groups || [];
+        const activities = localDb.activities || [];
+        const memberships = localDb.memberships || [];
+        const users = localDb.users || localUsers;
+
+        if (groups.length > 0 || activities.length > 0 || users.length > 0) {
+          await fetch(`${API_BASE}/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              groups,
+              users,
+              memberships,
+              activities,
+            }),
+          });
+        }
+      } else if (currentUser) {
+        await fetch(`${API_BASE}/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: [currentUser] }),
+        });
+      }
+    } catch {
+      // Ignore background sync errors
+    }
+  },
+
   async login(username: string, password?: string): Promise<User> {
     return tryApi(
       async () => {
@@ -136,12 +174,16 @@ export const api = {
   },
 
   async getGroups(userId?: string): Promise<Group[]> {
+    // Attempt background sync of any pending local data first
+    await this.syncLocalData();
+
     return tryApi(
       async () => {
         const url = userId ? `${API_BASE}/groups?userId=${encodeURIComponent(userId)}` : `${API_BASE}/groups`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch groups.');
-        return res.json();
+        const serverGroups = await res.json();
+        return serverGroups;
       },
       () => localStore.getGroups(userId)
     );
@@ -170,19 +212,30 @@ export const api = {
     deadline: string;
     maxParticipants?: number | null;
     creatorId: string;
+    creatorUsername?: string;
   }): Promise<Group> {
+    const currentUser = this.getCurrentUser();
+    const payload = {
+      ...data,
+      creatorUsername: data.creatorUsername || currentUser?.username || 'Runner',
+    };
+
     return tryApi(
       async () => {
         const res = await fetch(`${API_BASE}/groups`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || 'Failed to create group.');
+        // Also keep localStore cache in sync
+        try {
+          localStore.createGroup(payload);
+        } catch {}
         return resData;
       },
-      () => localStore.createGroup(data)
+      () => localStore.createGroup(payload)
     );
   },
 

@@ -193,6 +193,82 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '15mb' }));
 
+  // Enable CORS so cross-device requests (e.g. mobile vs desktop) work seamlessly
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Cross-device sync route: Merges client local data into the shared server database
+  app.post('/api/sync', (req, res) => {
+    const { groups = [], users = [], memberships = [], activities = [] } = req.body;
+    let changed = false;
+
+    // Merge users
+    if (Array.isArray(users)) {
+      users.forEach((u: any) => {
+        if (!db.users.some((existing) => existing.id === u.id || existing.username.toLowerCase() === u.username.toLowerCase())) {
+          db.users.push(u);
+          changed = true;
+        }
+      });
+    }
+
+    // Merge groups
+    if (Array.isArray(groups)) {
+      groups.forEach((g: any) => {
+        if (!db.groups.some((existing) => existing.id === g.id)) {
+          db.groups.unshift(g);
+          changed = true;
+          // Ensure creator has membership
+          if (!db.memberships.some((m) => m.groupId === g.id && m.userId === g.creatorId)) {
+            db.memberships.push({
+              id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              groupId: g.id,
+              userId: g.creatorId,
+              joinedAt: g.createdAt || new Date().toISOString(),
+            });
+          }
+        }
+      });
+    }
+
+    // Merge memberships
+    if (Array.isArray(memberships)) {
+      memberships.forEach((m: any) => {
+        if (!db.memberships.some((existing) => existing.groupId === m.groupId && existing.userId === m.userId)) {
+          db.memberships.push(m);
+          changed = true;
+        }
+      });
+    }
+
+    // Merge activities
+    if (Array.isArray(activities)) {
+      activities.forEach((a: any) => {
+        if (!db.activities.some((existing) => existing.id === a.id)) {
+          db.activities.unshift(a);
+          changed = true;
+        }
+      });
+    }
+
+    if (changed) {
+      saveDb(db);
+    }
+
+    return res.json({
+      success: true,
+      groupsCount: db.groups.length,
+      usersCount: db.users.length,
+    });
+  });
+
   // ===================== AUTH ROUTES =====================
   app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
@@ -391,9 +467,24 @@ async function startServer() {
       return res.status(400).json({ error: 'Group Name, Target KM, Start Date, Deadline, and Creator are required.' });
     }
 
-    const creator = db.users.find((u) => u.id === creatorId);
+    let creator = db.users.find((u) => u.id === creatorId);
     if (!creator) {
-      return res.status(404).json({ error: 'Creator user not found.' });
+      // Auto-heal / auto-register creator from client session so group creation never fails
+      const fallbackUsername = (req.body.creatorUsername || req.body.username || 'Runner').trim();
+      const existingUser = db.users.find((u) => u.username.toLowerCase() === fallbackUsername.toLowerCase());
+      if (existingUser) {
+        creator = existingUser;
+      } else {
+        creator = {
+          id: creatorId,
+          username: fallbackUsername,
+          password: 'password123',
+          name: fallbackUsername,
+          role: 'USER',
+          createdAt: new Date().toISOString(),
+        };
+        db.users.push(creator);
+      }
     }
 
     // Auto generate unique invite code: BESOK-XXXX

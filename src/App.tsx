@@ -75,11 +75,11 @@ function FunRunApp() {
       const users = await api.getUsers();
       setAllUsers(users);
 
-      // In deployment mode, if logged-in user no longer exists in database, clear session
+      // Auto-sync client user and data to server if missing
       if (currentUser && !users.some((u) => u.id === currentUser.id)) {
-        api.logout();
-        setCurrentUser(null);
-        return;
+        await api.syncLocalData();
+        const updatedUsers = await api.getUsers();
+        setAllUsers(updatedUsers);
       }
 
       // Fetch groups with user context so isMember is computed
