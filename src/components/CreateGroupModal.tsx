@@ -26,17 +26,33 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
-  const [name, setName] = useState('Besok Lari 10K');
-  const [description, setDescription] = useState('Besok Lari - Lace up, log your miles, and crush 10 KM together!');
-  const [targetKm, setTargetKm] = useState('10');
+  // Clean empty state (do not auto-fill)
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [targetKm, setTargetKm] = useState('');
   const [startDate, setStartDate] = useState(todayStr);
   const [deadline, setDeadline] = useState(nextWeek);
-  const [maxParticipants, setMaxParticipants] = useState('25');
+  const [maxParticipants, setMaxParticipants] = useState('');
 
   const [createdGroup, setCreatedGroup] = useState<Group | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Reset inputs on modal open
+  React.useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setDescription('');
+      setTargetKm('');
+      setStartDate(todayStr);
+      setDeadline(nextWeek);
+      setMaxParticipants('');
+      setCreatedGroup(null);
+      setErrorMsg(null);
+      setCopied(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -187,7 +203,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Besok Lari 10K"
+                  placeholder="Contoh: Besok Lari 10K / Morning Jogging"
                   required
                   className="w-full text-sm font-semibold rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
                 />
@@ -200,7 +216,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Besok Lari - Lace up, hit the pavement & conquer 10 KM together!"
+                  placeholder="Contoh: Yuk selesaikan target KM bareng-bareng minggu ini!"
                   rows={2}
                   className="w-full text-sm rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
                 />
@@ -218,7 +234,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                       min="1"
                       value={targetKm}
                       onChange={(e) => setTargetKm(e.target.value)}
-                      placeholder="10"
+                      placeholder="Contoh: 10"
                       required
                       className="w-full text-sm font-bold rounded-xl border border-stone-300 p-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
                     />
@@ -238,7 +254,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                     max="500"
                     value={maxParticipants}
                     onChange={(e) => setMaxParticipants(e.target.value)}
-                    placeholder="25"
+                    placeholder="Contoh: 25"
                     className="w-full text-sm font-medium rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
                   />
                 </div>

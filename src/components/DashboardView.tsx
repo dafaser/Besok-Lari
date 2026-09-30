@@ -104,8 +104,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-white text-[11px] font-cute font-extrabold border border-white/25">
-              <span className="animate-pulse">🔥</span>
-              <span>Besok Lari · Komunitas Ceria</span>
+              <span>☕</span>
+              <span>Besok Lari · Coffe menanti</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-cute font-black tracking-tight text-white flex items-center gap-2">
               <span>{getGreeting()}, {currentUser.username}!</span>
