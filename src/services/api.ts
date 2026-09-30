@@ -1,7 +1,6 @@
 import { User, Group, Activity, LeaderboardEntry, GroupProgressStats, UserStats, Achievement } from '../types';
 import { localStore } from './localStore';
-
-const API_BASE = '/api';
+import { firestoreService } from './firebase';
 
 export interface GroupDetailResponse {
   group: Group;
@@ -24,11 +23,12 @@ export interface UserStatsResponse {
   achievements: Achievement[];
 }
 
-// Wrapper to try backend first; if server is not present (e.g. Netlify static hosting), gracefully fall back to localStore
-async function tryApi<T>(apiCall: () => Promise<T>, fallbackCall: () => T | Promise<T>): Promise<T> {
+// Wrapper to try Firestore first; if offline, fall back to localStore
+async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: () => T | Promise<T>): Promise<T> {
   try {
-    return await apiCall();
+    return await firestoreCall();
   } catch (err) {
+    console.warn('[Firestore] Falling back to localStore due to error:', err);
     return await fallbackCall();
   }
 }
@@ -55,56 +55,22 @@ export const api = {
     localStorage.removeItem('funrun_user');
   },
 
-  // Cross-device sync: Uploads any locally created challenges/activities to shared server
+  // Cross-device sync: Uploads any locally created challenges/activities to shared Firebase Firestore
   async syncLocalData(): Promise<void> {
     try {
-      const raw = localStorage.getItem('besok_lari_local_db_v1');
-      const currentUser = this.getCurrentUser();
-      const localUsers = currentUser ? [currentUser] : [];
-
-      if (raw) {
-        const localDb = JSON.parse(raw);
-        const groups = localDb.groups || [];
-        const activities = localDb.activities || [];
-        const memberships = localDb.memberships || [];
-        const users = localDb.users || localUsers;
-
-        if (groups.length > 0 || activities.length > 0 || users.length > 0) {
-          await fetch(`${API_BASE}/sync`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              groups,
-              users,
-              memberships,
-              activities,
-            }),
-          });
-        }
-      } else if (currentUser) {
-        await fetch(`${API_BASE}/sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ users: [currentUser] }),
-        });
-      }
-    } catch {
-      // Ignore background sync errors
+      await firestoreService.syncLocalDataToFirestore();
+    } catch (e) {
+      console.warn('Sync to firestore error:', e);
     }
   },
 
   async login(username: string, password?: string): Promise<User> {
-    return tryApi(
+    return tryFirestore(
       async () => {
-        const res = await fetch(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password: password || 'password123' }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to login.');
-        const user: User = data.user;
+        const user = await firestoreService.login(username, password);
         this.setCurrentUser(user);
+        // Sync any pending local data
+        this.syncLocalData();
         return user;
       },
       () => {
@@ -116,17 +82,12 @@ export const api = {
   },
 
   async register(username: string, password?: string, role?: 'USER' | 'CREATOR'): Promise<User> {
-    return tryApi(
+    return tryFirestore(
       async () => {
-        const res = await fetch(`${API_BASE}/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password: password || 'password123', role: role || 'USER' }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to create account.');
-        const user: User = data.user;
+        const user = await firestoreService.register(username, password, role);
         this.setCurrentUser(user);
+        // Sync any pending local data
+        this.syncLocalData();
         return user;
       },
       () => {
@@ -138,12 +99,8 @@ export const api = {
   },
 
   async getUsers(): Promise<User[]> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/users`);
-        if (!res.ok) throw new Error('Failed to fetch users');
-        return res.json();
-      },
+    return tryFirestore(
+      () => firestoreService.getUsers(),
       () => localStore.getUsers()
     );
   },
@@ -152,54 +109,33 @@ export const api = {
     userId: string,
     data: { username?: string; password?: string; avatar?: string | null }
   ): Promise<User> {
-    return tryApi(
+    return tryFirestore(
       async () => {
-        const res = await fetch(`${API_BASE}/users/${userId}/profile`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to update profile.');
-        const updatedUser: User = resData.user;
-        this.setCurrentUser(updatedUser);
-        return updatedUser;
+        const updated = await firestoreService.updateProfile(userId, data);
+        this.setCurrentUser(updated);
+        return updated;
       },
       () => {
-        const updatedUser = localStore.updateProfile(userId, data);
-        this.setCurrentUser(updatedUser);
-        return updatedUser;
+        const updated = localStore.updateProfile(userId, data);
+        this.setCurrentUser(updated);
+        return updated;
       }
     );
   },
 
   async getGroups(userId?: string): Promise<Group[]> {
-    // Attempt background sync of any pending local data first
+    // Attempt background sync of any pending local data
     await this.syncLocalData();
 
-    return tryApi(
-      async () => {
-        const url = userId ? `${API_BASE}/groups?userId=${encodeURIComponent(userId)}` : `${API_BASE}/groups`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch groups.');
-        const serverGroups = await res.json();
-        return serverGroups;
-      },
+    return tryFirestore(
+      () => firestoreService.getGroups(userId),
       () => localStore.getGroups(userId)
     );
   },
 
   async getGroupDetail(groupId: string, userId?: string): Promise<GroupDetailResponse> {
-    return tryApi(
-      async () => {
-        const url = userId
-          ? `${API_BASE}/groups/${groupId}?userId=${encodeURIComponent(userId)}`
-          : `${API_BASE}/groups/${groupId}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to fetch group details.');
-        return data;
-      },
+    return tryFirestore(
+      () => firestoreService.getGroupDetail(groupId, userId),
       () => localStore.getGroupDetail(groupId, userId)
     );
   },
@@ -217,91 +153,62 @@ export const api = {
     const currentUser = this.getCurrentUser();
     const payload = {
       ...data,
-      creatorUsername: data.creatorUsername || currentUser?.username || 'Runner',
+      creatorUsername: data.creatorUsername || currentUser?.username || 'Pelari',
     };
 
-    return tryApi(
+    return tryFirestore(
       async () => {
-        const res = await fetch(`${API_BASE}/groups`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to create group.');
-        // Also keep localStore cache in sync
+        const newGroup = await firestoreService.createGroup(payload);
         try {
           localStore.createGroup(payload);
         } catch {}
-        return resData;
+        return newGroup;
       },
       () => localStore.createGroup(payload)
     );
   },
 
   async joinGroup(inviteCode: string, userId: string): Promise<{ message: string; group: Group }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/groups/join`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviteCode, userId }),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to join group.');
-        return resData;
-      },
+    return tryFirestore(
+      () => firestoreService.joinGroup(inviteCode, userId),
       () => localStore.joinGroup(inviteCode, userId)
     );
   },
 
-  async editGroup(groupId: string, data: {
-    name?: string;
-    description?: string;
-    targetKm?: number;
-    deadline?: string;
-    status?: 'ACTIVE' | 'CLOSED';
-    userId: string;
-  }): Promise<Group> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/groups/${groupId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to update group.');
-        return resData;
-      },
+  async editGroup(
+    groupId: string,
+    data: {
+      name?: string;
+      description?: string;
+      targetKm?: number;
+      deadline?: string;
+      status?: 'ACTIVE' | 'CLOSED';
+      userId: string;
+    }
+  ): Promise<Group> {
+    return tryFirestore(
+      () => firestoreService.editGroup(groupId, data),
       () => localStore.editGroup(groupId, data)
     );
   },
 
-  async deleteGroup(groupId: string, userId: string): Promise<{ message: string; deletedGroupId: string }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/groups/${groupId}?requestingUserId=${encodeURIComponent(userId)}`, {
-          method: 'DELETE',
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to delete group.');
-        return resData;
-      },
+  async deleteGroup(
+    groupId: string,
+    userId: string
+  ): Promise<{ message: string; deletedGroupId: string }> {
+    return tryFirestore(
+      () => firestoreService.deleteGroup(groupId, userId),
       () => localStore.deleteGroup(groupId, userId)
     );
   },
 
-  async removeParticipant(groupId: string, userId: string, requestingUserId: string): Promise<{ message: string }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/groups/${groupId}/members/${userId}?requestingUserId=${encodeURIComponent(requestingUserId)}`, {
-          method: 'DELETE',
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to remove participant.');
-        return resData;
-      },
+  async removeParticipant(
+    groupId: string,
+    userId: string,
+    requestingUserId: string
+  ): Promise<{ message: string }> {
+    return tryFirestore(
+      () => firestoreService.removeParticipant(groupId, userId, requestingUserId),
       () => localStore.removeParticipant(groupId, userId, requestingUserId)
     );
   },
@@ -312,18 +219,8 @@ export const api = {
     status?: string;
     creatorId?: string;
   }): Promise<Activity[]> {
-    return tryApi(
-      async () => {
-        const query = new URLSearchParams();
-        if (params?.groupId) query.append('groupId', params.groupId);
-        if (params?.userId) query.append('userId', params.userId);
-        if (params?.status) query.append('status', params.status);
-        if (params?.creatorId) query.append('creatorId', params.creatorId);
-
-        const res = await fetch(`${API_BASE}/activities?${query.toString()}`);
-        if (!res.ok) throw new Error('Failed to fetch activities.');
-        return res.json();
-      },
+    return tryFirestore(
+      () => firestoreService.getActivities(params),
       () => localStore.getActivities(params)
     );
   },
@@ -338,72 +235,41 @@ export const api = {
     photoUrl: string;
     note?: string;
   }): Promise<{ message: string; activity: Activity }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/activities`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(activityData),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to submit activity.');
-        return resData;
-      },
+    return tryFirestore(
+      () => firestoreService.submitActivity(activityData),
       () => localStore.submitActivity(activityData)
     );
   },
 
-  async approveActivity(activityId: string, creatorId: string): Promise<{ message: string; activity: Activity }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/activities/${activityId}/approve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ creatorId }),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to approve activity.');
-        return resData;
-      },
+  async approveActivity(
+    activityId: string,
+    creatorId: string
+  ): Promise<{ message: string; activity: Activity }> {
+    return tryFirestore(
+      () => firestoreService.approveActivity(activityId, creatorId),
       () => localStore.approveActivity(activityId, creatorId)
     );
   },
 
-  async rejectActivity(activityId: string, creatorId: string, rejectionReason?: string): Promise<{ message: string; activity: Activity }> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/activities/${activityId}/reject`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ creatorId, rejectionReason }),
-        });
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to reject activity.');
-        return resData;
-      },
+  async rejectActivity(
+    activityId: string,
+    creatorId: string,
+    rejectionReason?: string
+  ): Promise<{ message: string; activity: Activity }> {
+    return tryFirestore(
+      () => firestoreService.rejectActivity(activityId, creatorId, rejectionReason),
       () => localStore.rejectActivity(activityId, creatorId, rejectionReason)
     );
   },
 
   async getUserStats(userId: string): Promise<UserStatsResponse> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/stats/user/${userId}`);
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error || 'Failed to fetch user stats.');
-        return resData;
-      },
+    return tryFirestore(
+      () => firestoreService.getUserStats(userId),
       () => localStore.getUserStats(userId)
     );
   },
 
   async resetDemo(): Promise<void> {
-    return tryApi(
-      async () => {
-        const res = await fetch(`${API_BASE}/reset-demo`, { method: 'POST' });
-        if (!res.ok) throw new Error('Failed to reset demo data.');
-      },
-      () => localStore.resetDemo()
-    );
+    return localStore.resetDemo();
   },
 };

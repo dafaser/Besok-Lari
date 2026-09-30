@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Connectivity test document
+    match /test/connection {
+      allow read, write: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if false;
+    }
+
+    // Groups collection
+    match /groups/{groupId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Memberships collection
+    match /memberships/{membershipId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Activities collection
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Achievements collection
+    match /achievements/{achievementId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if false;
+    }
+  }
+}

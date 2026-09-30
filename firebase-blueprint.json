@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered runner user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["USER", "ADMIN"] },
+        "createdAt": { "type": "string" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["id", "username", "role", "createdAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "Running challenge group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "targetKm": { "type": "number" },
+        "maxMembers": { "type": "number" },
+        "deadline": { "type": "string" },
+        "hostId": { "type": "string" },
+        "hostUsername": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "COMPLETED", "CANCELLED"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "targetKm", "deadline", "hostId", "status", "createdAt"]
+    },
+    "Membership": {
+      "title": "Membership",
+      "description": "User participation in a challenge group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "joinedAt": { "type": "string" },
+        "role": { "type": "string", "enum": ["HOST", "MEMBER"] }
+      },
+      "required": ["id", "groupId", "userId", "username", "joinedAt", "role"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Run log entry submitted by a runner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "distanceKm": { "type": "number" },
+        "paceMinPerKm": { "type": "number" },
+        "photoProofUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "submittedAt": { "type": "string" },
+        "verifiedAt": { "type": "string" },
+        "verifiedBy": { "type": "string" }
+      },
+      "required": ["id", "groupId", "userId", "username", "date", "distanceKm", "status", "submittedAt"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "Unlocked badge or milestone",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "unlockedAt": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "title", "unlockedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Running challenge groups collection"
+    },
+    "/memberships/{membershipId}": {
+      "schema": "Membership",
+      "description": "Challenge group memberships"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Running logs submitted to challenges"
+    },
+    "/achievements/{achievementId}": {
+      "schema": "Achievement",
+      "description": "Runner achievements and trophies"
+    }
+  }
+}

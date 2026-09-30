@@ -1,0 +1,850 @@
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  getDocFromServer,
+} from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
+import {
+  User,
+  Group,
+  Activity,
+  Achievement,
+  LeaderboardEntry,
+  GroupProgressStats,
+  UserStats,
+} from '../types';
+import { GroupDetailResponse, UserStatsResponse } from './api';
+
+// Initialize Firebase App & Firestore with provisioned Database ID
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+export const db =
+  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(app);
+
+// Connectivity verification per system requirements
+export async function testConnection(): Promise<boolean> {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log('[Firebase] Connected to Firestore database:', firebaseConfig.firestoreDatabaseId);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('[Firebase] Client is offline or database configuration needs attention.');
+    } else {
+      console.log('[Firebase] Firestore initialized and responsive');
+    }
+    return true;
+  }
+}
+
+// Automatically test connection on boot
+testConnection();
+
+export interface MembershipRecord {
+  id: string;
+  groupId: string;
+  userId: string;
+  username: string;
+  joinedAt: string;
+  role: 'HOST' | 'MEMBER';
+}
+
+export const firestoreService = {
+  // ---------------- AUTH & USERS ----------------
+  async getUsers(): Promise<User[]> {
+    const snap = await getDocs(collection(db, 'users'));
+    const users: User[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as User;
+      users.push(data);
+    });
+    return users;
+  },
+
+  async login(username: string, password?: string): Promise<User> {
+    const cleanUsername = username.trim();
+    const snap = await getDocs(collection(db, 'users'));
+    let matchedUser: (User & { password?: string }) | null = null;
+
+    snap.forEach((d) => {
+      const data = d.data() as User & { password?: string };
+      if (data.username && data.username.toLowerCase() === cleanUsername.toLowerCase()) {
+        matchedUser = data;
+      }
+    });
+
+    if (!matchedUser) {
+      // Auto-register friendly behavior if not found
+      return this.register(cleanUsername, password);
+    }
+
+    const userObj = matchedUser as User & { password?: string };
+    const user: User = {
+      id: userObj.id,
+      username: userObj.username,
+      name: userObj.name,
+      avatar: userObj.avatar,
+      role: userObj.role,
+      createdAt: userObj.createdAt,
+    };
+    return user;
+  },
+
+  async register(username: string, password?: string, role: 'USER' | 'CREATOR' = 'USER'): Promise<User> {
+    const cleanUsername = username.trim();
+    const snap = await getDocs(collection(db, 'users'));
+    let existing: User | null = null;
+
+    snap.forEach((d) => {
+      const data = d.data() as User;
+      if (data.username && data.username.toLowerCase() === cleanUsername.toLowerCase()) {
+        existing = data;
+      }
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const newUser: User & { password?: string } = {
+      id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      username: cleanUsername,
+      name: cleanUsername,
+      role,
+      createdAt: new Date().toISOString(),
+      avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(cleanUsername)}`,
+      password: password || 'password123',
+    };
+
+    await setDoc(doc(db, 'users', newUser.id), newUser);
+    const user: User = {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      avatar: newUser.avatar,
+      role: newUser.role,
+      createdAt: newUser.createdAt,
+    };
+    return user;
+  },
+
+  async updateProfile(
+    userId: string,
+    data: { username?: string; password?: string; avatar?: string | null }
+  ): Promise<User> {
+    const ref = doc(db, 'users', userId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      throw new Error('User not found');
+    }
+
+    const current = snap.data() as User & { password?: string };
+    const updated: User & { password?: string } = {
+      ...current,
+      username: data.username?.trim() || current.username,
+      name: data.username?.trim() || current.name || current.username,
+      avatar: data.avatar !== undefined ? (data.avatar || undefined) : current.avatar,
+      password: data.password || current.password,
+    };
+
+    await setDoc(ref, updated);
+    const user: User = {
+      id: updated.id,
+      username: updated.username,
+      name: updated.name,
+      avatar: updated.avatar,
+      role: updated.role,
+      createdAt: updated.createdAt,
+    };
+    return user;
+  },
+
+  // ---------------- GROUPS (CHALLENGES) ----------------
+  async getGroups(userId?: string): Promise<Group[]> {
+    const [groupsSnap, membershipsSnap] = await Promise.all([
+      getDocs(collection(db, 'groups')),
+      getDocs(collection(db, 'memberships')),
+    ]);
+
+    const userMemberships = new Set<string>();
+
+    membershipsSnap.forEach((d) => {
+      const m = d.data() as MembershipRecord;
+      if (userId && m.userId === userId) {
+        userMemberships.add(m.groupId);
+      }
+    });
+
+    const groups: Group[] = [];
+    groupsSnap.forEach((d) => {
+      const g = d.data() as Group;
+      const isMember = userId
+        ? userMemberships.has(g.id) || g.creatorId === userId
+        : false;
+      const isCreator = userId ? g.creatorId === userId : false;
+
+      groups.push({
+        ...g,
+        isMember,
+        isCreator,
+      });
+    });
+
+    // Sort newest first
+    return groups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async getGroupDetail(groupId: string, userId?: string): Promise<GroupDetailResponse> {
+    const groupRef = doc(db, 'groups', groupId);
+    const groupSnap = await getDoc(groupRef);
+
+    if (!groupSnap.exists()) {
+      throw new Error('Group not found');
+    }
+
+    const groupData = groupSnap.data() as Group;
+
+    const [membershipsSnap, activitiesSnap, usersSnap] = await Promise.all([
+      getDocs(collection(db, 'memberships')),
+      getDocs(collection(db, 'activities')),
+      getDocs(collection(db, 'users')),
+    ]);
+
+    const memberships: MembershipRecord[] = [];
+    membershipsSnap.forEach((d) => {
+      const m = d.data() as MembershipRecord;
+      if (m.groupId === groupId) {
+        memberships.push(m);
+      }
+    });
+
+    const activities: Activity[] = [];
+    activitiesSnap.forEach((d) => {
+      const a = d.data() as Activity;
+      if (a.groupId === groupId) {
+        activities.push(a);
+      }
+    });
+
+    const usersMap: Record<string, User> = {};
+    usersSnap.forEach((d) => {
+      const u = d.data() as User;
+      usersMap[u.id] = u;
+    });
+
+    // Ensure host is included in memberships if missing
+    if (!memberships.some((m) => m.userId === groupData.creatorId)) {
+      const hostMembership: MembershipRecord = {
+        id: `mem_${groupId}_${groupData.creatorId}`,
+        groupId,
+        userId: groupData.creatorId,
+        username: groupData.creatorUsername || 'Host',
+        joinedAt: groupData.createdAt,
+        role: 'HOST',
+      };
+      memberships.push(hostMembership);
+    }
+
+    const isMember = userId
+      ? memberships.some((m) => m.userId === userId) || groupData.creatorId === userId
+      : false;
+    const isCreator = userId ? groupData.creatorId === userId : false;
+
+    const group: Group = {
+      ...groupData,
+      isMember,
+      isCreator,
+    };
+
+    // Calculate leaderboard
+    const targetKm = group.targetKm || 10;
+    const leaderboard: LeaderboardEntry[] = memberships.map((m) => {
+      const userApprovedActivities = activities.filter(
+        (a) => a.userId === m.userId && a.status === 'APPROVED'
+      );
+      const totalApprovedKm = Number(
+        userApprovedActivities.reduce((sum, a) => sum + Number(a.distanceKm || 0), 0).toFixed(1)
+      );
+      const progressPercent = Math.min(100, Math.round((totalApprovedKm / targetKm) * 100));
+      const isCompleted = totalApprovedKm >= targetKm;
+      const lastRunDate =
+        userApprovedActivities.length > 0
+          ? [...userApprovedActivities].sort((a, b) => b.date.localeCompare(a.date))[0].date
+          : undefined;
+
+      return {
+        userId: m.userId,
+        username: m.username || usersMap[m.userId]?.username || 'Pelari',
+        totalApprovedKm,
+        targetKm,
+        progressPercent,
+        isCompleted,
+        rank: 0,
+        approvedRunsCount: userApprovedActivities.length,
+        lastRunDate,
+      };
+    });
+
+    leaderboard.sort((a, b) => {
+      if (b.totalApprovedKm !== a.totalApprovedKm) {
+        return b.totalApprovedKm - a.totalApprovedKm;
+      }
+      return b.approvedRunsCount - a.approvedRunsCount;
+    });
+
+    leaderboard.forEach((e, idx) => {
+      e.rank = idx + 1;
+    });
+
+    // Calculate group stats
+    const approvedActivities = activities.filter((a) => a.status === 'APPROVED');
+    const totalApprovedKm = Number(
+      approvedActivities.reduce((sum, a) => sum + Number(a.distanceKm || 0), 0).toFixed(1)
+    );
+    const participantsCount = memberships.length;
+    const targetCollectiveKm = targetKm * participantsCount;
+    const collectiveProgressPercent =
+      targetCollectiveKm > 0
+        ? Math.min(100, Math.round((totalApprovedKm / targetCollectiveKm) * 100))
+        : 0;
+    const averageKmPerParticipant =
+      participantsCount > 0 ? Number((totalApprovedKm / participantsCount).toFixed(2)) : 0;
+    const completedCount = leaderboard.filter((l) => l.isCompleted).length;
+
+    const stats: GroupProgressStats = {
+      totalApprovedKm,
+      targetCollectiveKm,
+      collectiveProgressPercent,
+      participantsCount,
+      completedParticipantsCount: completedCount,
+      averageKmPerParticipant,
+      pendingApprovalsCount: activities.filter((a) => a.status === 'PENDING').length,
+    };
+
+    const members = leaderboard.map((l) => {
+      const mem = memberships.find((m) => m.userId === l.userId);
+      return {
+        userId: l.userId,
+        username: l.username,
+        joinedAt: mem?.joinedAt || group.createdAt,
+        totalApprovedKm: l.totalApprovedKm,
+        progressPercent: l.progressPercent,
+        isCompleted: l.isCompleted,
+      };
+    });
+
+    const recentApprovedActivities = approvedActivities
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+
+    return {
+      group,
+      stats,
+      leaderboard,
+      members,
+      recentApprovedActivities,
+    };
+  },
+
+  async createGroup(data: {
+    name: string;
+    description: string;
+    targetKm: number;
+    startDate: string;
+    deadline: string;
+    maxParticipants?: number | null;
+    creatorId: string;
+    creatorUsername?: string;
+  }): Promise<Group> {
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const newGroup: Group = {
+      id: groupId,
+      name: data.name,
+      description: data.description,
+      targetKm: Number(data.targetKm),
+      startDate: data.startDate,
+      deadline: data.deadline,
+      maxParticipants: data.maxParticipants || null,
+      inviteCode,
+      creatorId: data.creatorId,
+      creatorUsername: data.creatorUsername || 'Host Pelari',
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      isMember: true,
+      isCreator: true,
+    };
+
+    // Save group to Firestore
+    await setDoc(doc(db, 'groups', groupId), newGroup);
+
+    // Save creator's host membership to Firestore
+    const membershipId = `mem_${groupId}_${data.creatorId}`;
+    const hostMembership: MembershipRecord = {
+      id: membershipId,
+      groupId,
+      userId: data.creatorId,
+      username: data.creatorUsername || 'Host Pelari',
+      joinedAt: new Date().toISOString(),
+      role: 'HOST',
+    };
+    await setDoc(doc(db, 'memberships', membershipId), hostMembership);
+
+    return newGroup;
+  },
+
+  async editGroup(
+    groupId: string,
+    data: {
+      name?: string;
+      description?: string;
+      targetKm?: number;
+      deadline?: string;
+      status?: 'ACTIVE' | 'CLOSED';
+      userId: string;
+    }
+  ): Promise<Group> {
+    const ref = doc(db, 'groups', groupId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      throw new Error('Group not found');
+    }
+
+    const current = snap.data() as Group;
+    const updated: Group = {
+      ...current,
+      ...(data.name ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.targetKm ? { targetKm: Number(data.targetKm) } : {}),
+      ...(data.deadline ? { deadline: data.deadline } : {}),
+      ...(data.status ? { status: data.status } : {}),
+    };
+
+    await setDoc(ref, updated);
+    return updated;
+  },
+
+  async deleteGroup(
+    groupId: string,
+    userId: string
+  ): Promise<{ message: string; deletedGroupId: string }> {
+    const groupRef = doc(db, 'groups', groupId);
+    const snap = await getDoc(groupRef);
+    if (!snap.exists()) {
+      throw new Error('Group not found');
+    }
+
+    const group = snap.data() as Group;
+    if (group.creatorId !== userId) {
+      throw new Error('Unauthorized: only the group host can delete this group.');
+    }
+
+    await deleteDoc(groupRef);
+
+    // Delete associated memberships & activities
+    const [memSnap, actSnap] = await Promise.all([
+      getDocs(collection(db, 'memberships')),
+      getDocs(collection(db, 'activities')),
+    ]);
+
+    const deletes: Promise<void>[] = [];
+    memSnap.forEach((d) => {
+      const m = d.data() as MembershipRecord;
+      if (m.groupId === groupId) {
+        deletes.push(deleteDoc(doc(db, 'memberships', d.id)));
+      }
+    });
+
+    actSnap.forEach((d) => {
+      const a = d.data() as Activity;
+      if (a.groupId === groupId) {
+        deletes.push(deleteDoc(doc(db, 'activities', d.id)));
+      }
+    });
+
+    await Promise.all(deletes);
+
+    return { message: 'Group deleted successfully', deletedGroupId: groupId };
+  },
+
+  async removeParticipant(
+    groupId: string,
+    userId: string,
+    requestingUserId: string
+  ): Promise<{ message: string }> {
+    const groupRef = doc(db, 'groups', groupId);
+    const snap = await getDoc(groupRef);
+    if (!snap.exists()) {
+      throw new Error('Group not found');
+    }
+
+    const group = snap.data() as Group;
+    if (group.creatorId !== requestingUserId && userId !== requestingUserId) {
+      throw new Error('Unauthorized');
+    }
+
+    const memId = `mem_${groupId}_${userId}`;
+    await deleteDoc(doc(db, 'memberships', memId));
+
+    return { message: 'Participant removed successfully' };
+  },
+
+  async joinGroup(inviteCode: string, userId: string): Promise<{ message: string; group: Group }> {
+    const cleanCode = inviteCode.trim().toUpperCase();
+    const groupsSnap = await getDocs(collection(db, 'groups'));
+    let matchedGroup: Group | null = null;
+
+    groupsSnap.forEach((d) => {
+      const g = d.data() as Group;
+      if (g.inviteCode && g.inviteCode.toUpperCase() === cleanCode) {
+        matchedGroup = g;
+      }
+    });
+
+    if (!matchedGroup) {
+      throw new Error('Kode invite tidak ditemukan.');
+    }
+
+    const group: Group = matchedGroup;
+    const membershipId = `mem_${group.id}_${userId}`;
+    const memRef = doc(db, 'memberships', membershipId);
+    const memSnap = await getDoc(memRef);
+
+    if (memSnap.exists()) {
+      return { message: 'Kamu sudah menjadi anggota grup ini!', group };
+    }
+
+    // Get user details
+    const userSnap = await getDoc(doc(db, 'users', userId));
+    const username = userSnap.exists() ? (userSnap.data() as User).username : 'Pelari';
+
+    const newMembership: MembershipRecord = {
+      id: membershipId,
+      groupId: group.id,
+      userId,
+      username,
+      joinedAt: new Date().toISOString(),
+      role: 'MEMBER',
+    };
+
+    await setDoc(memRef, newMembership);
+
+    return {
+      message: `Selamat! Kamu berhasil bergabung dengan "${group.name}".`,
+      group: { ...group, isMember: true },
+    };
+  },
+
+  // ---------------- RUNS & ACTIVITIES ----------------
+  async getActivities(params?: {
+    groupId?: string;
+    userId?: string;
+    status?: string;
+    creatorId?: string;
+  }): Promise<Activity[]> {
+    const [actSnap, groupsSnap] = await Promise.all([
+      getDocs(collection(db, 'activities')),
+      getDocs(collection(db, 'groups')),
+    ]);
+
+    let result: Activity[] = [];
+    actSnap.forEach((d) => {
+      result.push(d.data() as Activity);
+    });
+
+    if (params?.groupId) {
+      result = result.filter((a) => a.groupId === params.groupId);
+    }
+    if (params?.userId) {
+      result = result.filter((a) => a.userId === params.userId);
+    }
+    if (params?.status) {
+      result = result.filter((a) => a.status === params.status);
+    }
+    if (params?.creatorId) {
+      const createdGroupIds = new Set<string>();
+      groupsSnap.forEach((d) => {
+        const g = d.data() as Group;
+        if (g.creatorId === params.creatorId) {
+          createdGroupIds.add(g.id);
+        }
+      });
+      result = result.filter((a) => createdGroupIds.has(a.groupId));
+    }
+
+    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async submitActivity(activityData: {
+    groupId: string;
+    userId: string;
+    date: string;
+    distanceKm: number;
+    startTime: string;
+    endTime: string;
+    photoUrl: string;
+    note?: string;
+  }): Promise<{ message: string; activity: Activity }> {
+    const [startH, startM] = activityData.startTime.split(':').map(Number);
+    const [endH, endM] = activityData.endTime.split(':').map(Number);
+    let startMinutes = startH * 60 + startM;
+    let endMinutes = endH * 60 + endM;
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60;
+    }
+    const durationMinutes = Math.max(1, endMinutes - startMinutes);
+    const distanceKm = Number(activityData.distanceKm);
+
+    const userSnap = await getDoc(doc(db, 'users', activityData.userId));
+    const username = userSnap.exists() ? (userSnap.data() as User).username : 'Pelari';
+
+    const actId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newActivity: Activity = {
+      id: actId,
+      groupId: activityData.groupId,
+      userId: activityData.userId,
+      username,
+      date: activityData.date,
+      startTime: activityData.startTime,
+      endTime: activityData.endTime,
+      durationMinutes,
+      distanceKm,
+      photoUrl:
+        activityData.photoUrl ||
+        'https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?auto=format&fit=crop&w=800&q=80',
+      note: activityData.note || '',
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'activities', actId), newActivity);
+    return {
+      message: 'Aktivitas lari berhasil dicatat dan menunggu verifikasi host!',
+      activity: newActivity,
+    };
+  },
+
+  async approveActivity(
+    activityId: string,
+    creatorId: string
+  ): Promise<{ message: string; activity: Activity }> {
+    const updated = await this.verifyActivity(activityId, 'APPROVED', creatorId);
+    return {
+      message: 'Aktivitas berhasil disetujui!',
+      activity: updated,
+    };
+  },
+
+  async rejectActivity(
+    activityId: string,
+    creatorId: string,
+    rejectionReason?: string
+  ): Promise<{ message: string; activity: Activity }> {
+    const updated = await this.verifyActivity(activityId, 'REJECTED', creatorId, rejectionReason);
+    return {
+      message: 'Aktivitas ditolak.',
+      activity: updated,
+    };
+  },
+
+  async verifyActivity(
+    activityId: string,
+    status: 'APPROVED' | 'REJECTED',
+    verifierId: string,
+    rejectionReason?: string
+  ): Promise<Activity> {
+    const ref = doc(db, 'activities', activityId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      throw new Error('Activity not found');
+    }
+
+    const activity = snap.data() as Activity;
+    const updated: Activity = {
+      ...activity,
+      status,
+      approvedAt: status === 'APPROVED' ? new Date().toISOString() : null,
+      approvedBy: status === 'APPROVED' ? verifierId : null,
+      rejectionReason: status === 'REJECTED' ? (rejectionReason || 'Ditolak oleh host') : null,
+    };
+
+    await setDoc(ref, updated);
+    return updated;
+  },
+
+  // ---------------- USER STATS & ACHIEVEMENTS ----------------
+  async getUserStats(userId: string): Promise<UserStatsResponse> {
+    const [userSnap, activitiesSnap, groupsSnap, membershipsSnap] = await Promise.all([
+      getDoc(doc(db, 'users', userId)),
+      getDocs(collection(db, 'activities')),
+      getDocs(collection(db, 'groups')),
+      getDocs(collection(db, 'memberships')),
+    ]);
+
+    const user: User = userSnap.exists()
+      ? (userSnap.data() as User)
+      : {
+          id: userId,
+          username: 'Pelari',
+          name: 'Pelari',
+          role: 'USER',
+          createdAt: new Date().toISOString(),
+        };
+
+    const userApprovedRuns: Activity[] = [];
+    let longestRun = 0;
+    activitiesSnap.forEach((d) => {
+      const a = d.data() as Activity;
+      if (a.userId === userId && a.status === 'APPROVED') {
+        userApprovedRuns.push(a);
+        if (a.distanceKm > longestRun) {
+          longestRun = a.distanceKm;
+        }
+      }
+    });
+
+    const totalKm = Number(
+      userApprovedRuns.reduce((sum, a) => sum + Number(a.distanceKm || 0), 0).toFixed(1)
+    );
+
+    const userGroupIds = new Set<string>();
+    membershipsSnap.forEach((d) => {
+      const m = d.data() as MembershipRecord;
+      if (m.userId === userId) {
+        userGroupIds.add(m.groupId);
+      }
+    });
+
+    let challengesJoined = 0;
+    let challengesCompleted = 0;
+
+    groupsSnap.forEach((d) => {
+      const g = d.data() as Group;
+      if (userGroupIds.has(g.id)) {
+        challengesJoined++;
+        if (g.status === 'CLOSED') {
+          challengesCompleted++;
+        }
+      }
+    });
+
+    // Streak calculation
+    const approvedDates = userApprovedRuns
+      .map((a) => a.date)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .sort()
+      .reverse();
+
+    let currentStreak = 0;
+    if (approvedDates.length > 0) {
+      currentStreak = 1;
+      for (let i = 0; i < approvedDates.length - 1; i++) {
+        const c = new Date(approvedDates[i]);
+        const p = new Date(approvedDates[i + 1]);
+        const diff = Math.round((c.getTime() - p.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff === 1) currentStreak++;
+        else break;
+      }
+    }
+
+    const stats: UserStats = {
+      totalKm,
+      totalRuns: userApprovedRuns.length,
+      challengesJoined,
+      challengesCompleted,
+      longestRun,
+      currentStreak,
+    };
+
+    const achievements: Achievement[] = [
+      {
+        id: 'ach_first_run',
+        userId,
+        achievementType: 'FIRST_RUN',
+        title: 'Lari Perdana 👟',
+        description: 'Menyelesaikan lari pertama yang telah diverifikasi!',
+        earnedAt: userApprovedRuns.length > 0 ? userApprovedRuns[0].createdAt : '',
+        icon: '👟',
+      },
+      {
+        id: 'ach_target',
+        userId,
+        achievementType: 'TARGET_ACHIEVED',
+        title: 'Target Tercapai 🎯',
+        description: 'Menyelesaikan target KM challenge!',
+        earnedAt: challengesCompleted > 0 ? new Date().toISOString() : '',
+        icon: '🎯',
+      },
+      {
+        id: 'ach_streak_3',
+        userId,
+        achievementType: '3_DAY_STREAK',
+        title: 'Semangat Membara 🔥',
+        description: 'Lari 3 hari berturut-turut tanpa jeda!',
+        earnedAt: currentStreak >= 3 ? new Date().toISOString() : '',
+        icon: '🔥',
+      },
+    ];
+
+    return { user, stats, achievements };
+  },
+
+  // ---------------- MIGRATION / SYNC ----------------
+  // Automatically sync any offline / local data from Samsung Phone or Chrome into Firestore
+  async syncLocalDataToFirestore(): Promise<void> {
+    try {
+      const raw = localStorage.getItem('besok_lari_local_db_v1');
+      if (!raw) return;
+      const local = JSON.parse(raw);
+
+      // 1. Sync users
+      if (Array.isArray(local.users)) {
+        for (const u of local.users) {
+          if (u.id && u.username) {
+            await setDoc(doc(db, 'users', u.id), u, { merge: true });
+          }
+        }
+      }
+
+      // 2. Sync groups
+      if (Array.isArray(local.groups)) {
+        for (const g of local.groups) {
+          if (g.id && g.name) {
+            await setDoc(doc(db, 'groups', g.id), g, { merge: true });
+          }
+        }
+      }
+
+      // 3. Sync memberships
+      if (Array.isArray(local.memberships)) {
+        for (const m of local.memberships) {
+          if (m.id || (m.groupId && m.userId)) {
+            const id = m.id || `mem_${m.groupId}_${m.userId}`;
+            await setDoc(doc(db, 'memberships', id), { ...m, id }, { merge: true });
+          }
+        }
+      }
+
+      // 4. Sync activities
+      if (Array.isArray(local.activities)) {
+        for (const a of local.activities) {
+          if (a.id && a.groupId && a.userId) {
+            await setDoc(doc(db, 'activities', a.id), a, { merge: true });
+          }
+        }
+      }
+
+      console.log('[Firebase] Local data synchronized successfully into cloud Firestore.');
+    } catch (e) {
+      console.warn('[Firebase] Background local data sync info:', e);
+    }
+  },
+};

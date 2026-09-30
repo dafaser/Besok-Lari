@@ -60,8 +60,9 @@ function FunRunApp() {
     setIsJoinGroupOpen(true);
   };
 
-  // 1. Initial Load: Check Auth
+  // 1. Initial Load: Check Auth & Sync any offline data to Firebase
   useEffect(() => {
+    api.syncLocalData().catch(() => {});
     const user = api.getCurrentUser();
     if (user) {
       setCurrentUser(user);
