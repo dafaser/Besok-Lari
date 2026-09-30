@@ -1,0 +1,6 @@
+{
+  "name": "Besok Lari",
+  "description": "Besok Lari - Mobile-first running challenge & jogging community app with progressive KM logging, 3-podium leaderboard, and verified photo proof.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

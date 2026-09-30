@@ -1,0 +1,447 @@
+import React, { useState, useEffect } from 'react';
+import { X, Upload, Camera, AlertCircle, Sparkles, Check } from 'lucide-react';
+import { Group } from '../types';
+import { SAMPLE_RUN_PHOTOS } from '../mockData';
+
+interface AddRunModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: {
+    groupId: string;
+    date: string;
+    distanceKm: number;
+    startTime: string;
+    endTime: string;
+    photoUrl: string;
+    note?: string;
+  }) => Promise<void>;
+  groups: Group[];
+  selectedGroupId?: string;
+  onOpenJoinGroup?: () => void;
+}
+
+export const AddRunModal: React.FC<AddRunModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  groups,
+  selectedGroupId,
+  onOpenJoinGroup,
+}) => {
+  // Today's date YYYY-MM-DD
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const [groupId, setGroupId] = useState(selectedGroupId || (groups[0]?.id || ''));
+  const [date, setDate] = useState(todayStr);
+  const [distanceKm, setDistanceKm] = useState<string>('2.5');
+  const [startTime, setStartTime] = useState<string>('06:30');
+  const [endTime, setEndTime] = useState<string>('07:05');
+  const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_RUN_PHOTOS[0]);
+  const [note, setNote] = useState<string>('Morning run before work.');
+  const [durationMinutes, setDurationMinutes] = useState<number>(35);
+  const [timeError, setTimeError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync selectedGroupId
+  useEffect(() => {
+    if (selectedGroupId) {
+      setGroupId(selectedGroupId);
+    } else if (groups.length > 0 && !groupId) {
+      setGroupId(groups[0].id);
+    }
+  }, [selectedGroupId, groups]);
+
+  // Calculate duration automatically whenever startTime or endTime changes (Rule 15)
+  useEffect(() => {
+    if (!startTime || !endTime) {
+      setDurationMinutes(0);
+      setTimeError(null);
+      return;
+    }
+
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+
+    if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) {
+      setTimeError('Invalid time entered.');
+      return;
+    }
+
+    const startTotal = startH * 60 + startM;
+    const endTotal = endH * 60 + endM;
+
+    if (startTotal === endTotal) {
+      setTimeError('End time must be after start time.');
+      setDurationMinutes(0);
+      return;
+    }
+
+    if (endTotal < startTotal) {
+      setTimeError('End time must be after start time.');
+      setDurationMinutes(0);
+      return;
+    }
+
+    setTimeError(null);
+    setDurationMinutes(endTotal - startTotal);
+  }, [startTime, endTime]);
+
+  if (!isOpen) return null;
+
+  // Handle local image file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/image\/(jpeg|png|webp|jpg)/i)) {
+      setErrorMsg('File must be JPG, JPEG, PNG, or WEBP.');
+      return;
+    }
+
+    // Convert file to Data URL
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPhotoUrl(reader.result);
+        setErrorMsg(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    const dist = parseFloat(distanceKm);
+    if (isNaN(dist) || dist <= 0) {
+      setErrorMsg('Distance must be greater than 0.');
+      return;
+    }
+
+    if (timeError) {
+      setErrorMsg(timeError);
+      return;
+    }
+
+    if (!photoUrl) {
+      setErrorMsg('Please upload a photo proof.');
+      return;
+    }
+
+    if (!groupId) {
+      setErrorMsg('Please select an active challenge group.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        groupId,
+        date,
+        distanceKm: dist,
+        startTime,
+        endTime,
+        photoUrl,
+        note,
+      });
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to submit run.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-stone-200 relative max-h-[92vh] sm:max-h-none overflow-y-auto my-0 sm:my-8 animate-in slide-in-from-bottom duration-200">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 p-2 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-emerald-600/30">
+            🏃
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-stone-900 tracking-tight">
+              Log Your Run
+            </h2>
+            <p className="text-xs text-stone-700 font-medium">
+              Submit your miles and photo proof for the challenge host to verify
+            </p>
+          </div>
+        </div>
+
+        {errorMsg && (
+          <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {groups.length === 0 ? (
+          <div className="text-center py-6">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl mx-auto mb-3">
+              ⚠️
+            </div>
+            <h3 className="text-base font-bold text-stone-900">No Challenge Joined Yet</h3>
+            <p className="text-xs text-stone-600 mt-1 mb-5">
+              You need to join a challenge first before logging any miles. Grab an invite code from a friend or challenge host!
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              {onOpenJoinGroup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenJoinGroup();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-700/20 cursor-pointer"
+                >
+                  + Enter Invite Code
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 font-bold text-xs hover:bg-stone-50 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Group selector */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                Select Challenge
+              </label>
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="w-full text-sm font-semibold rounded-xl border border-stone-300 p-3 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
+              >
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} (Goal: {g.targetKm} KM)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Date picker */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                Run Date
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full text-sm font-medium rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
+              />
+            </div>
+
+            {/* Distance Input */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                Distance (KM)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="100"
+                  value={distanceKm}
+                  onChange={(e) => setDistanceKm(e.target.value)}
+                  placeholder="2.5"
+                  required
+                  className="w-full text-sm font-bold rounded-xl border border-stone-300 p-2.5 pr-12 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
+                />
+                <span className="absolute right-3 top-2.5 text-xs font-bold text-emerald-700">
+                  KM
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {['2', '3', '5', '10'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setDistanceKm(preset)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                      distanceKm === preset
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                    }`}
+                  >
+                    {preset}K
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Start Time & End Time */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                required
+                className="w-full text-sm font-medium rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                End Time
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                required
+                className={`w-full text-sm font-medium rounded-xl border p-2.5 focus:outline-none focus:ring-2 ${
+                  timeError
+                    ? 'border-rose-300 focus:ring-rose-500/30 focus:border-rose-500 bg-rose-50/50'
+                    : 'border-stone-300 focus:ring-emerald-500/30 focus:border-emerald-600'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Automatic Duration display (Rule 15) */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-800">
+              Auto-Calculated Duration:
+            </span>
+            <span className="text-sm font-black font-mono text-emerald-900">
+              {timeError ? (
+                <span className="text-rose-600 text-xs font-bold">{timeError}</span>
+              ) : (
+                `${durationMinutes} Mins`
+              )}
+            </span>
+          </div>
+
+          {/* Photo Proof Upload (Rule 12 & Rule 30) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
+                Upload Run Photo Proof *
+              </label>
+              <span className="text-[11px] text-stone-500">JPG, PNG, WEBP</span>
+            </div>
+
+            {/* Current photo preview or placeholder */}
+            <div className="relative border-2 border-dashed border-stone-300 rounded-2xl p-4 bg-stone-50 text-center hover:bg-stone-100/80 transition-colors">
+              {photoUrl ? (
+                <div className="relative group">
+                  <img
+                    src={photoUrl}
+                    alt="Run proof preview"
+                    className="h-36 w-full object-cover rounded-xl shadow-xs"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-white text-xs font-bold">
+                    Tap or upload to change photo
+                  </div>
+                </div>
+              ) : (
+                <div className="py-6 flex flex-col items-center justify-center">
+                  <Upload className="w-8 h-8 text-stone-400 mb-2" />
+                  <p className="text-xs font-semibold text-stone-700">
+                    Tap to upload photo from your GPS watch, fitness app, or running selfie
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-1">Up to 10 MB</p>
+                </div>
+              )}
+
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/jpg"
+                onChange={handleFileUpload}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
+
+            {/* Quick sample photo selector for instant evaluation */}
+            <div className="mt-2">
+              <span className="text-[11px] font-semibold text-stone-500 flex items-center gap-1 mb-1.5">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Quick Preset Sample Photos:
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {SAMPLE_RUN_PHOTOS.slice(0, 5).map((url, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setPhotoUrl(url)}
+                    className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 transition-transform active:scale-95 ${
+                      photoUrl === url ? 'border-emerald-600 ring-2 ring-emerald-500/30' : 'border-transparent opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={url} alt={`Sample ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {photoUrl === url && (
+                      <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
+                        <Check className="w-4 h-4 text-white drop-shadow-md" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Note (Optional) */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+              Run Notes (Optional)
+            </label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Easy morning jog, great weather and felt energetic!"
+              className="w-full text-sm rounded-xl border border-stone-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600"
+            />
+          </div>
+
+          {/* Submit button */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting || !!timeError}
+              className="w-full py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold text-base shadow-lg shadow-emerald-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <span>Submitting your run...</span>
+              ) : (
+                <>
+                  <span>SUBMIT RUN</span>
+                  <span className="text-emerald-200 text-xs">➔ Waiting Approval</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+      </div>
+    </div>
+  );
+};
