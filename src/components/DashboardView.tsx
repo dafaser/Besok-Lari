@@ -21,6 +21,7 @@ import { Group, Activity, LeaderboardEntry, UserStats, GroupProgressStats, User 
 import { CountdownTimer } from './CountdownTimer';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDeadline } from '../utils/dateUtils';
+import { BesokLariLogo } from './BesokLariLogo';
 
 interface DashboardViewProps {
   currentUser: User;
@@ -76,12 +77,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Current user ranking in leaderboard
   const userRankEntry = activeLeaderboard.find((e) => e.userId === currentUser.id);
 
-  // Time of day greeting in casual English
+  // Time of day greeting in casual Indonesian
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 11) return 'Selamat Pagi';
+    if (hour < 15) return 'Selamat Siang';
+    if (hour < 18) return 'Selamat Sore';
+    return 'Selamat Malam';
   };
 
   const handleConfirmDelete = async () => {
@@ -97,19 +99,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-24 md:pb-12">
-      {/* Header Banner - Mobile First */}
-      <div className="bg-gradient-to-tr from-stone-900 via-stone-800 to-emerald-950 text-white p-5 sm:p-6 rounded-3xl shadow-xl relative overflow-hidden">
-        <div className="space-y-1 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
-            <Flame className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Besok Lari Challenge</span>
+      {/* Header Banner - Cute & Energetic Styling */}
+      <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white p-5 sm:p-6 rounded-3xl shadow-lg shadow-emerald-700/15 relative overflow-hidden border border-emerald-400/40">
+        <div className="flex items-center justify-between gap-4 relative z-10">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-white text-[11px] font-cute font-extrabold border border-white/25">
+              <span className="animate-pulse">🔥</span>
+              <span>Besok Lari · Komunitas Ceria</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-cute font-black tracking-tight text-white flex items-center gap-2">
+              <span>{getGreeting()}, {currentUser.username}!</span>
+              <span className="animate-cute-wiggle inline-block">👋</span>
+            </h1>
+            <p className="text-emerald-50 text-xs font-cute font-semibold">
+              Besok lari? Hari ini aja yuk, biar ga cuma wacana! 👟💨
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-            {getGreeting()}, {currentUser.username}! 👋
-          </h1>
-          <p className="text-stone-300 text-xs font-medium">
-            Ready to log your miles? Start today, not tomorrow!
-          </p>
+
+          <div className="hidden sm:block shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center p-1 border border-white/30 shadow-inner">
+              <BesokLariLogo size="md" variant="icon" animated />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -271,46 +282,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </button>
               </div>
 
-              {/* Progress Bar */}
+              {/* Cute Progress Bar with Moving Sneaker */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-bold text-stone-600">
-                  <span>{progressPercent}% Goal Completed</span>
-                  <span>{remainingKm > 0 ? `${remainingKm} KM to go!` : '🎉 Target Crushed!'}</span>
+                <div className="flex justify-between text-xs font-cute font-bold text-stone-600">
+                  <span className="flex items-center gap-1">
+                    <span>{progressPercent}% Goal Tercapai</span>
+                    {isCompleted && <span>🎉</span>}
+                  </span>
+                  <span>{remainingKm > 0 ? `Kurang ${remainingKm} KM lagi!` : '🔥 Target Selesai, Keren!'}</span>
                 </div>
-                <div className="h-3 w-full bg-stone-200 rounded-full overflow-hidden p-0.5">
+                <div className="relative h-4 w-full bg-stone-100 rounded-full p-0.5 border border-stone-200">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-emerald-600'
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-emerald-500'
                     }`}
                     style={{ width: `${progressPercent}%` }}
                   />
+                  {/* Floating Sneaker Icon at current progress */}
+                  <div
+                    className="absolute -top-1.5 text-base transition-all duration-700 pointer-events-none -ml-2"
+                    style={{ left: `${Math.min(96, Math.max(3, progressPercent))}%` }}
+                  >
+                    👟
+                  </div>
                 </div>
               </div>
             </div>
           )}
         </div>
       ) : (
-        /* Empty State when no group is active */
-        <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 text-center shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl mx-auto mb-3">
-            🏃
+        /* Empty State when no group is active - Cute Mascot */
+        <div className="bg-white rounded-3xl border-2 border-emerald-100 p-6 sm:p-8 text-center shadow-md shadow-emerald-500/5">
+          <div className="flex justify-center mb-3">
+            <div className="w-20 h-20 rounded-3xl bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center p-2 shadow-xs">
+              <BesokLariLogo size="lg" variant="icon" animated />
+            </div>
           </div>
-          <h3 className="text-base font-black text-stone-900">No Active Challenge Yet</h3>
-          <p className="text-xs text-stone-600 max-w-md mx-auto mt-1 mb-4 leading-relaxed">
-            Kickstart your running journey by joining a group challenge with an invite code or create a new one for your running crew!
+          <div className="inline-block px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-cute font-extrabold border border-amber-200 mb-2">
+            ✨ Waktunya Pasang Sepatu!
+          </div>
+          <h3 className="text-lg font-cute font-black text-stone-900">Belum Ada Challenge Aktif</h3>
+          <p className="text-xs font-cute font-semibold text-stone-500 max-w-md mx-auto mt-1 mb-5 leading-relaxed">
+            Yuk mulai lari bareng teman-teman! Gabung challenge pakai kode undangan atau buat tantangan lari baru untuk grup kamu~
           </p>
-          <div className="flex items-center justify-center gap-2.5">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5">
             <button
               onClick={() => onOpenJoinGroup()}
-              className="px-4 py-2.5 rounded-xl border border-stone-300 hover:bg-stone-50 active:bg-stone-100 text-xs font-bold text-stone-700 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-2xl border-2 border-stone-200 hover:border-emerald-400 hover:bg-emerald-50/50 active:scale-95 text-xs font-cute font-extrabold text-stone-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              + Enter Invite Code
+              <span>🔑 Masukkan Kode Undangan</span>
             </button>
             <button
               onClick={onOpenCreateGroup}
-              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-md shadow-emerald-700/20 transition-all cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-cute font-black shadow-md shadow-emerald-700/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              + Create New Challenge
+              <span>+ Buat Challenge Baru 👟</span>
             </button>
           </div>
         </div>

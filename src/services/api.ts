@@ -110,6 +110,31 @@ export const api = {
     );
   },
 
+  async updateProfile(
+    userId: string,
+    data: { username?: string; password?: string; avatar?: string | null }
+  ): Promise<User> {
+    return tryApi(
+      async () => {
+        const res = await fetch(`${API_BASE}/users/${userId}/profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.error || 'Failed to update profile.');
+        const updatedUser: User = resData.user;
+        this.setCurrentUser(updatedUser);
+        return updatedUser;
+      },
+      () => {
+        const updatedUser = localStore.updateProfile(userId, data);
+        this.setCurrentUser(updatedUser);
+        return updatedUser;
+      }
+    );
+  },
+
   async getGroups(userId?: string): Promise<Group[]> {
     return tryApi(
       async () => {

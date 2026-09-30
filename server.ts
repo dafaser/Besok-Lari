@@ -251,6 +251,59 @@ async function startServer() {
     return res.json(safeUsers);
   });
 
+  // Profile Settings: Change username, new password (without old password), and profile photo (add/edit/delete)
+  app.put('/api/users/:id/profile', (req, res) => {
+    const { id } = req.params;
+    const { username, password, avatar } = req.body;
+
+    const user = db.users.find((u) => u.id === id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Change username
+    if (username && username.trim() !== user.username) {
+      const trimmed = username.trim();
+      const exists = db.users.some(
+        (u) => u.id !== id && u.username.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (exists) {
+        return res.status(400).json({ error: 'Username is already taken by another runner.' });
+      }
+      user.username = trimmed;
+      user.name = trimmed;
+
+      // Cascade update activities & groups
+      db.activities.forEach((a) => {
+        if (a.userId === id) a.username = trimmed;
+      });
+      db.groups.forEach((g) => {
+        if (g.creatorId === id) g.creatorUsername = trimmed;
+      });
+    }
+
+    // Change password (no old password required)
+    if (password && typeof password === 'string' && password.trim()) {
+      if (password.trim().length < 4) {
+        return res.status(400).json({ error: 'Password must be at least 4 characters long.' });
+      }
+      user.password = password.trim();
+    }
+
+    // Add, edit, or delete avatar photo
+    if (avatar !== undefined) {
+      if (avatar && typeof avatar === 'string' && avatar.trim()) {
+        user.avatar = avatar.trim();
+      } else {
+        delete user.avatar;
+      }
+    }
+
+    saveDb(db);
+    const { password: _, ...safeUser } = user;
+    return res.json({ user: safeUser });
+  });
+
   // ===================== GROUP ROUTES =====================
   app.get('/api/groups', (req, res) => {
     const userId = req.query.userId as string | undefined;

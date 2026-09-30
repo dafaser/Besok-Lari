@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Camera, AlertCircle, Sparkles, Check } from 'lucide-react';
+import { X, Upload, Camera, AlertCircle } from 'lucide-react';
 import { Group } from '../types';
-import { SAMPLE_RUN_PHOTOS } from '../mockData';
 
 interface AddRunModalProps {
   isOpen: boolean;
@@ -36,12 +35,21 @@ export const AddRunModal: React.FC<AddRunModalProps> = ({
   const [distanceKm, setDistanceKm] = useState<string>('2.5');
   const [startTime, setStartTime] = useState<string>('06:30');
   const [endTime, setEndTime] = useState<string>('07:05');
-  const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_RUN_PHOTOS[0]);
-  const [note, setNote] = useState<string>('Morning run before work.');
+  const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [note, setNote] = useState<string>('');
   const [durationMinutes, setDurationMinutes] = useState<number>(35);
   const [timeError, setTimeError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Reset form inputs on open
+  useEffect(() => {
+    if (isOpen) {
+      setPhotoUrl('');
+      setNote('');
+      setErrorMsg(null);
+    }
+  }, [isOpen]);
 
   // Sync selectedGroupId
   useEffect(() => {
@@ -348,27 +356,31 @@ export const AddRunModal: React.FC<AddRunModalProps> = ({
               <span className="text-[11px] text-stone-500">JPG, PNG, WEBP</span>
             </div>
 
-            {/* Current photo preview or placeholder */}
+            {/* Photo upload proof - Only upload symbol */}
             <div className="relative border-2 border-dashed border-stone-300 rounded-2xl p-4 bg-stone-50 text-center hover:bg-stone-100/80 transition-colors">
               {photoUrl ? (
                 <div className="relative group">
                   <img
                     src={photoUrl}
                     alt="Run proof preview"
-                    className="h-36 w-full object-cover rounded-xl shadow-xs"
+                    className="h-40 w-full object-cover rounded-xl shadow-xs"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-white text-xs font-bold">
-                    Tap or upload to change photo
+                    Tap to change photo
                   </div>
                 </div>
               ) : (
-                <div className="py-6 flex flex-col items-center justify-center">
-                  <Upload className="w-8 h-8 text-stone-400 mb-2" />
-                  <p className="text-xs font-semibold text-stone-700">
-                    Tap to upload photo from your GPS watch, fitness app, or running selfie
+                <div className="py-7 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5 shadow-2xs border border-emerald-100">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-stone-800">
+                    Tap to upload photo proof
                   </p>
-                  <p className="text-[11px] text-stone-400 mt-1">Up to 10 MB</p>
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Upload GPS watch, running app, or selfie (JPG, PNG, WEBP)
+                  </p>
                 </div>
               )}
 
@@ -378,33 +390,6 @@ export const AddRunModal: React.FC<AddRunModalProps> = ({
                 onChange={handleFileUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-            </div>
-
-            {/* Quick sample photo selector for instant evaluation */}
-            <div className="mt-2">
-              <span className="text-[11px] font-semibold text-stone-500 flex items-center gap-1 mb-1.5">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Quick Preset Sample Photos:
-              </span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {SAMPLE_RUN_PHOTOS.slice(0, 5).map((url, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setPhotoUrl(url)}
-                    className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 transition-transform active:scale-95 ${
-                      photoUrl === url ? 'border-emerald-600 ring-2 ring-emerald-500/30' : 'border-transparent opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={url} alt={`Sample ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    {photoUrl === url && (
-                      <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white drop-shadow-md" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 

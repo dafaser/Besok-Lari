@@ -71,9 +71,16 @@ function FunRunApp() {
   // 2. Refresh all data
   const refreshData = useCallback(async () => {
     try {
-      // Fetch users for switcher
+      // Fetch users
       const users = await api.getUsers();
       setAllUsers(users);
+
+      // In deployment mode, if logged-in user no longer exists in database, clear session
+      if (currentUser && !users.some((u) => u.id === currentUser.id)) {
+        api.logout();
+        setCurrentUser(null);
+        return;
+      }
 
       // Fetch groups with user context so isMember is computed
       const allGroups = await api.getGroups(currentUser?.id);
@@ -178,6 +185,17 @@ function FunRunApp() {
     setCurrentUser(null);
     setSelectedGroupId('');
     showToast('Logged out. See you on the next run!', 'info');
+  };
+
+  const handleUpdateProfile = async (data: {
+    username?: string;
+    password?: string;
+    avatar?: string | null;
+  }) => {
+    if (!currentUser) return;
+    const updatedUser = await api.updateProfile(currentUser.id, data);
+    setCurrentUser(updatedUser);
+    await refreshData();
   };
 
   const handleSwitchUser = async (username: string) => {
@@ -439,8 +457,11 @@ function FunRunApp() {
             currentUser={currentUser}
             stats={userStats}
             achievements={achievements}
+            hasCreatedGroups={groups.some((g) => g.creatorId === currentUser.id)}
             onOpenAddRun={() => setIsAddRunOpen(true)}
             onLogout={handleLogout}
+            onUpdateProfile={handleUpdateProfile}
+            onShowToast={showToast}
           />
         )}
 

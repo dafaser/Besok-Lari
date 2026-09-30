@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { User } from '../types';
+import { BesokLariLogo } from './BesokLariLogo';
 
 export type TabType =
   | 'dashboard'
@@ -75,24 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Top Header - Mobile-first compact & touch-friendly */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-xs">
         <div className="max-w-4xl mx-auto px-3.5 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-          {/* Brand Logo & Name "Besok Lari" */}
+          {/* Brand Logo & Name "Besok Lari" with Cute Mascot */}
           <div
             onClick={() => onSelectTab('dashboard')}
-            className="flex items-center gap-2.5 cursor-pointer group select-none"
+            className="cursor-pointer group select-none hover:opacity-95 active:scale-98 transition-transform"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center font-black text-lg shadow-md shadow-emerald-600/30 group-hover:scale-105 active:scale-95 transition-transform">
-              <Flame className="w-5 h-5 fill-white text-white animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-lg sm:text-xl tracking-tight text-stone-900 font-sans">
-                  BESOK <span className="text-emerald-600">LARI</span>
-                </span>
-              </div>
-              <p className="text-[9px] sm:text-[10px] font-bold text-stone-500 -mt-1 tracking-wider uppercase">
-                Start today, don't wait for tomorrow!
-              </p>
-            </div>
+            <BesokLariLogo size="sm" animated />
           </div>
 
           {/* Desktop/Tablet Navigation Links (hidden on mobile phones) */}
@@ -206,15 +195,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="flex items-center gap-1.5 p-1 sm:p-1.5 sm:pl-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-xs font-bold text-stone-700 transition-colors cursor-pointer select-none"
                   aria-label="User menu"
                 >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                    {currentUser.username[0]?.toUpperCase()}
-                  </div>
+                  {currentUser.avatar ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.username}
+                      className="w-7 h-7 rounded-full object-cover border border-emerald-500/40"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                      {currentUser.username[0]?.toUpperCase()}
+                    </div>
+                  )}
                   <span className="max-w-[70px] sm:max-w-[90px] truncate text-xs font-black">
                     {currentUser.username}
                   </span>
                   {isCreator && (
                     <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md hidden xs:inline">
-                      CREATOR
+                      HOST
                     </span>
                   )}
                   <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
@@ -223,14 +220,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {/* Mobile Dropdown / Sheet */}
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-stone-200 py-2.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                    <div className="px-3.5 py-2 border-b border-stone-100 flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-black text-stone-900">{currentUser.name || currentUser.username}</div>
-                        <div className="text-[10px] text-stone-500 font-mono">@{currentUser.username} • {currentUser.role}</div>
+                    <div className="px-3.5 py-2.5 border-b border-stone-100 flex items-center gap-2.5">
+                      {currentUser.avatar ? (
+                        <img
+                          src={currentUser.avatar}
+                          alt={currentUser.username}
+                          className="w-9 h-9 rounded-xl object-cover border border-emerald-500/30 shrink-0 shadow-2xs"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-sm flex items-center justify-center shrink-0">
+                          {currentUser.username[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="overflow-hidden flex-1">
+                        <div className="text-xs font-black text-stone-900 truncate">{currentUser.name || currentUser.username}</div>
+                        <div className="text-[10px] text-stone-500 font-mono">@{currentUser.username}</div>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                        Active
-                      </span>
                     </div>
 
                     <button
@@ -241,43 +246,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full text-left px-3.5 py-2.5 text-xs text-stone-700 hover:bg-stone-50 active:bg-stone-100 flex items-center gap-2 font-bold transition-colors"
                     >
                       <UserIcon className="w-4 h-4 text-stone-500" />
-                      <span>View My Profile</span>
+                      <span>Profil Saya & Pengaturan</span>
                     </button>
-
-                    {/* Switch User for Evaluation / Testing */}
-                    {availableUsers.length > 0 && onSwitchUser && (
-                      <div className="mt-1 pt-1 border-t border-stone-100">
-                        <div className="px-3.5 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                          Switch Account (Testing)
-                        </div>
-                        {availableUsers.map((u) => (
-                          <button
-                            key={u.id}
-                            onClick={() => {
-                              onSwitchUser(u.username);
-                              setIsUserMenuOpen(false);
-                            }}
-                            className={`w-full text-left px-3.5 py-2 text-xs font-semibold flex items-center justify-between hover:bg-stone-50 active:bg-stone-100 transition-colors ${
-                              u.username === currentUser.username
-                                ? 'bg-emerald-50 text-emerald-800 font-bold'
-                                : 'text-stone-700'
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-stone-200 text-stone-700 text-[10px] flex items-center justify-center font-bold">
-                                {u.username[0]}
-                              </span>
-                              <span>{u.username}</span>
-                            </span>
-                            {u.role === 'CREATOR' && (
-                              <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-sm font-bold">
-                                Creator
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
 
                     <div className="h-px bg-stone-100 my-1.5" />
 

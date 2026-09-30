@@ -226,6 +226,48 @@ export const localStore = {
     return db.users.map(({ password: _, ...u }) => u);
   },
 
+  updateProfile(userId: string, data: { username?: string; password?: string; avatar?: string | null }): User {
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    if (data.username && data.username.trim() !== user.username) {
+      const trimmed = data.username.trim();
+      const exists = db.users.some(
+        (u) => u.id !== userId && u.username.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (exists) throw new Error('Username is already taken by another runner.');
+      user.username = trimmed;
+      user.name = trimmed;
+
+      db.activities.forEach((a) => {
+        if (a.userId === userId) a.username = trimmed;
+      });
+      db.groups.forEach((g) => {
+        if (g.creatorId === userId) g.creatorUsername = trimmed;
+      });
+    }
+
+    if (data.password && data.password.trim()) {
+      if (data.password.trim().length < 4) {
+        throw new Error('Password must be at least 4 characters long.');
+      }
+      user.password = data.password.trim();
+    }
+
+    if (data.avatar !== undefined) {
+      if (data.avatar && data.avatar.trim()) {
+        user.avatar = data.avatar.trim();
+      } else {
+        delete user.avatar;
+      }
+    }
+
+    saveDb(db);
+    const { password: _, ...safeUser } = user;
+    return safeUser;
+  },
+
   getGroups(userId?: string): Group[] {
     const db = getDb();
     return db.groups.map((g) => {

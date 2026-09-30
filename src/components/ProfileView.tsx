@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User, UserStats, Achievement } from '../types';
-import { Trophy, Flame, Footprints, Award, Calendar, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Trophy, Flame, Footprints, Award, Calendar, CheckCircle2, ShieldCheck, Settings, Camera } from 'lucide-react';
+import { EditProfileModal } from './EditProfileModal';
 
 interface ProfileViewProps {
   currentUser: User;
   stats: UserStats | null;
   achievements: Achievement[];
+  hasCreatedGroups?: boolean;
   onOpenAddRun: () => void;
   onLogout: () => void;
+  onUpdateProfile: (data: {
+    username?: string;
+    password?: string;
+    avatar?: string | null;
+  }) => Promise<void>;
+  onShowToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const ALL_ACHIEVEMENT_DEFINITIONS = [
@@ -59,23 +67,53 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   stats,
   achievements,
+  hasCreatedGroups,
   onOpenAddRun,
   onLogout,
+  onUpdateProfile,
+  onShowToast,
 }) => {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const isHost = hasCreatedGroups || currentUser.role === 'CREATOR';
+
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-24 md:pb-12">
       {/* Profile Card */}
       <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-emerald-600/30">
-            {currentUser.username[0]?.toUpperCase()}
+          {/* Avatar with click to edit */}
+          <div
+            className="relative group shrink-0 cursor-pointer"
+            onClick={() => setIsEditModalOpen(true)}
+            title="Klik untuk ubah foto profil"
+          >
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.username}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-md border-2 border-emerald-500 ring-2 ring-emerald-500/20"
+              />
+            ) : (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-emerald-600/30">
+                {currentUser.username[0]?.toUpperCase()}
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/45 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-bold">
+              <Camera className="w-4 h-4 mb-0.5" />
+              <span>Ubah</span>
+            </div>
           </div>
+
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-stone-900">{currentUser.username}</h1>
-              {currentUser.role === 'CREATOR' && (
-                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  GROUP CREATOR
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-black text-stone-900 tracking-tight">{currentUser.username}</h1>
+              {isHost ? (
+                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                  👑 GROUP HOST
+                </span>
+              ) : (
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                  🏃 RUNNER
                 </span>
               )}
             </div>
@@ -85,13 +123,32 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="self-start sm:self-center px-4 py-2 rounded-xl border border-stone-200 hover:bg-stone-50 text-xs font-bold text-stone-600 hover:text-rose-600 transition-colors cursor-pointer"
-        >
-          Log Out
-        </button>
+        {/* Action Buttons: Edit Profile & Logout */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-xs font-bold text-stone-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5 text-stone-500" />
+            <span>Edit Profil</span>
+          </button>
+          <button
+            onClick={onLogout}
+            className="px-3.5 py-2 rounded-xl border border-stone-200 hover:bg-stone-50 text-xs font-bold text-stone-600 hover:text-rose-600 transition-colors cursor-pointer"
+          >
+            Log Out
+          </button>
+        </div>
       </div>
+
+      {/* Edit Profile Settings Modal */}
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        currentUser={currentUser}
+        onClose={() => setIsEditModalOpen(false)}
+        onUpdateProfile={onUpdateProfile}
+        onShowToast={onShowToast}
+      />
 
       {/* Running Statistics Grid (Rule 21) */}
       <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-xs">
