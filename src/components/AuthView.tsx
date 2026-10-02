@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User as UserIcon, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { User as UserIcon, Lock, ArrowRight, AlertCircle, Eye, EyeOff, UserPlus, Flame } from 'lucide-react';
 import { User } from '../types';
 import { BesokLariLogo } from './BesokLariLogo';
 import { CuteRunnerAnimation, RunnerAnimMode } from './CuteRunnerAnimation';
@@ -15,7 +15,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onRegister,
   onShowToast,
 }) => {
-  // Default to Login mode as requested
+  // Default to Login mode
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -68,70 +68,134 @@ export const AuthView: React.FC<AuthViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-amber-50/30 to-stone-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
+    <div
+      className={`min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans transition-colors duration-500 ${
+        isRegister
+          ? 'bg-gradient-to-b from-orange-100/70 via-amber-50/50 to-stone-100'
+          : 'bg-gradient-to-b from-emerald-50/60 via-amber-50/30 to-stone-100'
+      }`}
+    >
       {/* Decorative background cute floating circles & stars */}
-      <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-emerald-200/30 blur-2xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-44 h-44 rounded-full bg-amber-200/30 blur-2xl pointer-events-none" />
+      <div
+        className={`absolute top-10 left-10 w-36 h-36 rounded-full blur-2xl pointer-events-none transition-colors duration-500 ${
+          isRegister ? 'bg-orange-300/35' : 'bg-emerald-200/30'
+        }`}
+      />
+      <div
+        className={`absolute bottom-10 right-10 w-48 h-48 rounded-full blur-2xl pointer-events-none transition-colors duration-500 ${
+          isRegister ? 'bg-amber-300/35' : 'bg-amber-200/30'
+        }`}
+      />
       <div className="absolute top-1/4 right-8 text-2xl text-emerald-300 select-none animate-cute-float opacity-70 pointer-events-none">
-        ☁️
+        {isRegister ? '☀️' : '☁️'}
       </div>
       <div
         className="absolute bottom-1/4 left-8 text-2xl text-amber-300 select-none animate-cute-float opacity-70 pointer-events-none"
         style={{ animationDelay: '1.5s' }}
       >
-        ✨
+        {isRegister ? '🔥' : '✨'}
       </div>
 
       {/* Brand Header with Mascot Logo */}
-      <div className="text-center mb-4 z-10">
+      <div className="text-center mb-3 z-10">
         <BesokLariLogo size="xl" animated showSubtitle={false} className="justify-center mb-1" />
         <p className="font-cute font-extrabold text-sm sm:text-base text-stone-600 flex items-center justify-center gap-1.5 mt-0.5">
           <span>Mulai Hari Ini, Jangan Wacana Melulu~</span>
-          <span className="text-emerald-600">👟💨</span>
+          <span className={isRegister ? 'text-orange-600' : 'text-emerald-600'}>👟💨</span>
         </p>
       </div>
 
-      {/* Main Interactive Cute Card */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl shadow-stone-200/60 border-2 border-emerald-100 relative z-10 transition-all">
-        {/* Animated Moving Mascot Stage */}
-        <div className="py-1">
+      {/* Main Interactive Cute Card with Differentiated Login vs Register Design */}
+      <div
+        className={`backdrop-blur-md rounded-3xl p-5 sm:p-7 max-w-md w-full relative z-10 transition-all duration-300 ${
+          isRegister
+            ? 'bg-gradient-to-b from-orange-50/50 via-white to-amber-50/30 border-2 border-orange-300 shadow-2xl shadow-orange-500/15 ring-4 ring-orange-100/70'
+            : 'bg-white/95 border-2 border-emerald-200/90 shadow-xl shadow-emerald-600/10'
+        }`}
+      >
+
+        {/* Animated Moving Mascot Stage (Customized dynamically for Register vs Login) */}
+        <div className="py-0.5">
           <CuteRunnerAnimation
             mode={currentMascotMode}
-            speechText={
-              focusedField === 'password'
-                ? 'Psst, mataku ditutup kok! Rahasia aman~ 🙈'
-                : isRegister
-                ? 'Yuk daftar! Jadi pelari kece mulai hari ini 🏃‍♀️'
-                : 'Hai kamu! Udah siap bakar kalori hari ini? 🔥'
-            }
+            variant={isRegister ? 'register' : 'login'}
           />
         </div>
 
-        {/* Clean Title Heading */}
+        {/* Dynamic Title Heading with Badge */}
         <div className="text-center mt-2 mb-4">
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-cute font-extrabold border mb-1.5 ${
+              isRegister
+                ? 'bg-orange-100 text-orange-800 border-orange-200 animate-pulse'
+                : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+            }`}
+          >
+            {isRegister ? (
+              <>
+                <UserPlus className="w-3.5 h-3.5 text-orange-600" />
+                <span>PENDAFTARAN PELARI BARU</span>
+              </>
+            ) : (
+              <>
+                <Flame className="w-3.5 h-3.5 text-emerald-600" />
+                <span>AREA MASUK PELARI</span>
+              </>
+            )}
+          </div>
           <h2 className="text-base sm:text-lg font-cute font-black text-stone-900">
-            {isRegister ? 'Daftar Akun Baru 👟' : 'Masuk ke Besok Lari 🏃'}
+            {isRegister ? 'Daftar Akun Pelari 👟✨' : 'Masuk ke Besok Lari 🏃'}
           </h2>
-          <p className="text-xs font-cute text-stone-500 mt-0.5">
+          <p className="text-xs font-cute font-semibold text-stone-500 mt-0.5">
             {isRegister
-              ? 'Daftar mudah dengan username & password'
+              ? 'Daftar mudah sekali, langsung siap ikut challenge lari!'
               : 'Masukkan username & password akun kamu'}
           </p>
         </div>
 
         {/* Error Alert with cute icon */}
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-2xl bg-rose-50 border-2 border-rose-200 text-rose-700 text-xs font-cute font-bold flex items-center gap-2 animate-cute-pop">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-            <span>{errorMsg}</span>
+          <div className="mb-4 p-3 rounded-2xl bg-rose-50 border-2 border-rose-200 text-rose-700 text-xs font-cute font-bold flex items-start gap-2.5 animate-cute-pop">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+            <div className="flex-1 leading-relaxed">
+              <div>{errorMsg}</div>
+              {errorMsg.includes('belum terdaftar') && !isRegister && (
+                <div className="mt-1.5 pt-1.5 border-t border-rose-200/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(true);
+                      setErrorMsg(null);
+                    }}
+                    className="text-emerald-700 hover:text-emerald-800 underline font-black cursor-pointer text-xs"
+                  >
+                    👉 Belum punya akun? Klik di sini untuk Daftar
+                  </button>
+                </div>
+              )}
+              {errorMsg.includes('sudah terdaftar') && isRegister && (
+                <div className="mt-1.5 pt-1.5 border-t border-rose-200/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(false);
+                      setErrorMsg(null);
+                    }}
+                    className="text-emerald-700 hover:text-emerald-800 underline font-black cursor-pointer text-xs"
+                  >
+                    👉 Sudah pernah daftar? Klik di sini untuk Masuk
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Auth Form: Username & Password Only */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
             <label className="block text-xs font-cute font-extrabold uppercase tracking-wider text-stone-700 mb-1.5">
-              Username Pelari
+              {isRegister ? 'Pilih Username Pelari Kamu' : 'Username Pelari'}
             </label>
             <div className="relative group">
               <input
@@ -142,22 +206,34 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 onBlur={() => setFocusedField(null)}
                 placeholder="Contoh: dafasr, bobbyrunner"
                 required
-                className="w-full text-sm font-semibold rounded-2xl border-2 border-stone-200 p-3 pl-10 pr-4 bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 transition-all placeholder:text-stone-400 placeholder:font-normal"
+                className={`w-full text-sm font-semibold rounded-2xl border-2 p-3 pl-10 pr-4 transition-all placeholder:text-stone-400 placeholder:font-normal focus:bg-white focus:outline-none ${
+                  isRegister
+                    ? 'border-orange-200 bg-orange-50/20 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15'
+                    : 'border-stone-200 bg-stone-50/50 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15'
+                }`}
               />
-              <UserIcon className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 group-focus-within:text-emerald-500 transition-colors" />
+              <UserIcon
+                className={`w-4 h-4 absolute left-3.5 top-3.5 transition-colors ${
+                  isRegister ? 'text-orange-400 group-focus-within:text-orange-500' : 'text-stone-400 group-focus-within:text-emerald-500'
+                }`}
+              />
             </div>
             <p className="text-[11px] font-cute text-stone-500 mt-1 pl-1">
-              {isRegister ? 'Pilih username unik untuk akun kamu' : 'Ketik username yang sudah kamu daftarkan'}
+              {isRegister ? 'Username ini akan menjadi nama BIB kamu di leaderboard' : 'Ketik username yang sudah kamu daftarkan'}
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-cute font-extrabold uppercase tracking-wider text-stone-700">
-                Password
+                {isRegister ? 'Buat Password Akun' : 'Password'}
               </label>
               {focusedField === 'password' && (
-                <span className="text-[10px] font-cute font-bold text-emerald-600 animate-pulse">
+                <span
+                  className={`text-[10px] font-cute font-bold animate-pulse ${
+                    isRegister ? 'text-orange-600' : 'text-emerald-600'
+                  }`}
+                >
                   🙈 Masked for privacy
                 </span>
               )}
@@ -171,9 +247,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 onBlur={() => setFocusedField(null)}
                 placeholder="Minimal 4 karakter"
                 required
-                className="w-full text-sm font-semibold rounded-2xl border-2 border-stone-200 p-3 pl-10 pr-10 bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 transition-all placeholder:text-stone-400 placeholder:font-normal"
+                className={`w-full text-sm font-semibold rounded-2xl border-2 p-3 pl-10 pr-10 transition-all placeholder:text-stone-400 placeholder:font-normal focus:bg-white focus:outline-none ${
+                  isRegister
+                    ? 'border-orange-200 bg-orange-50/20 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15'
+                    : 'border-stone-200 bg-stone-50/50 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15'
+                }`}
               />
-              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 group-focus-within:text-emerald-500 transition-colors" />
+              <Lock
+                className={`w-4 h-4 absolute left-3.5 top-3.5 transition-colors ${
+                  isRegister ? 'text-orange-400 group-focus-within:text-orange-500' : 'text-stone-400 group-focus-within:text-emerald-500'
+                }`}
+              />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -185,41 +269,46 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </div>
           </div>
 
-          {/* Submit Action Button */}
+          {/* Submit Action Button with Distinct Colors & Copy */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 active:scale-98 disabled:opacity-50 text-white font-cute font-black text-sm shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer mt-5 hover:-translate-y-0.5"
+            className={`w-full py-3.5 px-6 rounded-2xl active:scale-98 disabled:opacity-50 text-white font-cute font-black text-sm transition-all flex items-center justify-center gap-2 cursor-pointer mt-4 hover:-translate-y-0.5 ${
+              isRegister
+                ? 'bg-gradient-to-r from-orange-500 via-amber-500 to-rose-500 hover:from-orange-600 hover:via-amber-600 hover:to-rose-600 shadow-lg shadow-orange-500/30 ring-2 ring-orange-300/40'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 shadow-lg shadow-emerald-600/25'
+            }`}
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>{isRegister ? 'Mendaftarkan Akun...' : 'Memproses Masuk...'}</span>
+                <span>{isRegister ? 'Mendaftarkan Akun Baru...' : 'Memproses Masuk...'}</span>
               </span>
             ) : (
               <>
-                <span>{isRegister ? 'DAFTAR SEKARANG 👟' : 'MASUK KE BESOK LARI 🏃'}</span>
+                <span>{isRegister ? 'DAFTAR SEBAGAI PELARI BARU 👟✨' : 'MASUK KE BESOK LARI 🏃'}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
-        {/* Small Bottom Link as requested: "Belum punya akun? Daftar di sini" */}
-        <div className="mt-5 pt-3.5 border-t border-stone-100 text-center">
+
+        {/* Bottom Toggle Link */}
+        <div className="mt-4 pt-3 border-t border-stone-100 text-center">
           <p className="text-xs font-cute text-stone-500">
             {isRegister ? (
               <span>
-                Sudah punya akun?{' '}
+                Sudah punya akun pelari?{' '}
                 <button
                   type="button"
                   onClick={() => {
                     setIsRegister(false);
                     setErrorMsg(null);
                   }}
-                  className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                  className="font-bold text-orange-600 hover:text-orange-700 hover:underline cursor-pointer"
                 >
-                  Masuk di sini
+                  Masuk di sini ➔
                 </button>
               </span>
             ) : (
@@ -233,7 +322,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   }}
                   className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
                 >
-                  Daftar di sini
+                  Daftar di sini ➔
                 </button>
               </span>
             )}
@@ -242,7 +331,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       </div>
 
       {/* Cute Footer Tagline */}
-      <div className="text-center mt-6 text-stone-400 text-xs font-cute font-semibold flex items-center gap-2">
+      <div className="text-center mt-5 text-stone-400 text-xs font-cute font-semibold flex items-center gap-2">
         <span>🏃 lari tipis-tipis</span>
         <span>·</span>
         <span>🔥 bakar kalori</span>

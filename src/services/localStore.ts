@@ -178,47 +178,68 @@ function calculateGroupStats(
 }
 
 export const localStore = {
-  login(username: string): User {
+  login(username: string, password?: string): User {
     const db = getDb();
+    const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      throw new Error('Masukkan username kamu.');
+    }
+    const cleanPassword = (password || '').trim();
+    if (!cleanPassword) {
+      throw new Error('Masukkan password kamu.');
+    }
+
     const found = db.users.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase()
+      (u) => u.username.toLowerCase() === cleanUsername.toLowerCase()
     );
     if (!found) {
-      // Auto-create user for frictionless offline/static testing
-      const newUser: User = {
-        id: `user_${Date.now()}`,
-        username: username.trim(),
-        name: username.trim(),
-        role: 'USER',
-        createdAt: new Date().toISOString(),
-      };
-      db.users.push(newUser);
-      saveDb(db);
-      return newUser;
+      throw new Error(`Username "${cleanUsername}" belum terdaftar. Silakan daftar terlebih dahulu atau periksa salah input.`);
     }
+
+    // Check password
+    if (found.password && found.password !== cleanPassword) {
+      throw new Error('Password yang kamu masukkan salah. Silakan coba lagi.');
+    }
+
+    if (!found.password && cleanPassword) {
+      found.password = cleanPassword;
+      saveDb(db);
+    }
+
     const { password: _, ...safeUser } = found;
     return safeUser;
   },
 
-  register(username: string, role?: 'USER' | 'CREATOR'): User {
+  register(username: string, password?: string, role?: 'USER' | 'CREATOR'): User {
     const db = getDb();
+    const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      throw new Error('Masukkan username kamu.');
+    }
+    const cleanPassword = (password || '').trim();
+    if (!cleanPassword || cleanPassword.length < 4) {
+      throw new Error('Password minimal 4 karakter yaa biar aman.');
+    }
+
     const existing = db.users.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase()
+      (u) => u.username.toLowerCase() === cleanUsername.toLowerCase()
     );
     if (existing) {
-      const { password: _, ...safeUser } = existing;
-      return safeUser;
+      throw new Error(`Username "${cleanUsername}" sudah terdaftar. Silakan gunakan username lain atau silakan masuk.`);
     }
-    const newUser: User = {
+
+    const newUser: User & { password?: string } = {
       id: `user_${Date.now()}`,
-      username: username.trim(),
-      name: username.trim(),
+      username: cleanUsername,
+      name: cleanUsername,
       role: role || 'USER',
+      password: cleanPassword,
       createdAt: new Date().toISOString(),
     };
     db.users.push(newUser);
     saveDb(db);
-    return newUser;
+    const { password: _, ...safeUser } = newUser;
+    return safeUser;
   },
 
   getUsers(): User[] {

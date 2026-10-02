@@ -71,22 +71,46 @@ export const firestoreService = {
 
   async login(username: string, password?: string): Promise<User> {
     const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      throw new Error('Masukkan username kamu.');
+    }
+    const cleanPassword = (password || '').trim();
+    if (!cleanPassword) {
+      throw new Error('Masukkan password kamu.');
+    }
+
     const snap = await getDocs(collection(db, 'users'));
-    let matchedUser: (User & { password?: string }) | null = null;
+    const matchingUsers: (User & { password?: string })[] = [];
 
     snap.forEach((d) => {
       const data = d.data() as User & { password?: string };
-      if (data.username && data.username.toLowerCase() === cleanUsername.toLowerCase()) {
-        matchedUser = data;
+      if (data.username && data.username.trim().toLowerCase() === cleanUsername.toLowerCase()) {
+        matchingUsers.push(data);
       }
     });
 
-    if (!matchedUser) {
-      // Auto-register friendly behavior if not found
-      return this.register(cleanUsername, password);
+    if (matchingUsers.length === 0) {
+      throw new Error(`Username "${cleanUsername}" belum terdaftar. Silakan daftar terlebih dahulu atau periksa salah input.`);
     }
 
-    const userObj = matchedUser as User & { password?: string };
+    // Prefer doc that has password set
+    const userObj = matchingUsers.find((u) => Boolean(u.password)) || matchingUsers[0];
+    const storedPassword = userObj.password || 'password123';
+
+    // Strictly check password
+    if (storedPassword !== cleanPassword) {
+      throw new Error('Password yang kamu masukkan salah. Silakan coba lagi.');
+    }
+
+    // Ensure password is persisted
+    if (!userObj.password) {
+      try {
+        await setDoc(doc(db, 'users', userObj.id), { password: cleanPassword }, { merge: true });
+      } catch (err) {
+        console.warn('Could not backfill password', err);
+      }
+    }
+
     const user: User = {
       id: userObj.id,
       username: userObj.username,
@@ -104,6 +128,14 @@ export const firestoreService = {
     role: 'USER' | 'CREATOR' | 'ADMIN' = 'USER'
   ): Promise<User> {
     const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      throw new Error('Masukkan username kamu.');
+    }
+    const cleanPassword = (password || '').trim();
+    if (!cleanPassword || cleanPassword.length < 4) {
+      throw new Error('Password minimal 4 karakter yaa biar aman.');
+    }
+
     const snap = await getDocs(collection(db, 'users'));
     let existing: User | null = null;
 
@@ -115,7 +147,7 @@ export const firestoreService = {
     });
 
     if (existing) {
-      return existing as User;
+      throw new Error(`Username "${cleanUsername}" sudah terdaftar. Silakan gunakan username lain atau silakan masuk.`);
     }
 
     const newUser: User & { password?: string } = {
@@ -125,7 +157,7 @@ export const firestoreService = {
       role: 'USER',
       createdAt: new Date().toISOString(),
       avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(cleanUsername)}`,
-      password: password || 'password123',
+      password: cleanPassword,
     };
 
     await setDoc(doc(db, 'users', newUser.id), newUser);

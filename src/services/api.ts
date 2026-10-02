@@ -27,8 +27,25 @@ export interface UserStatsResponse {
 async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: () => T | Promise<T>): Promise<T> {
   try {
     return await firestoreCall();
-  } catch (err) {
-    console.warn('[Firestore] Falling back to localStore due to error:', err);
+  } catch (err: any) {
+    const msg = err?.message || '';
+    // If it's a validation, business, or authentication error, rethrow directly so UI shows the exact message!
+    if (
+      msg.includes('belum terdaftar') ||
+      msg.includes('salah') ||
+      msg.includes('sudah terdaftar') ||
+      msg.includes('sudah digunakan') ||
+      msg.includes('minimal 4') ||
+      msg.includes('dikeluarkan') ||
+      msg.includes('Kode invite tidak ditemukan') ||
+      msg.includes('Unauthorized') ||
+      msg.includes('tidak ditemukan') ||
+      msg.includes('Password') ||
+      msg.includes('Username')
+    ) {
+      throw err;
+    }
+    console.warn('[Firestore] Falling back to localStore due to network error:', err);
     return await fallbackCall();
   }
 }
@@ -74,7 +91,7 @@ export const api = {
         return user;
       },
       () => {
-        const user = localStore.login(username);
+        const user = localStore.login(username, password);
         this.setCurrentUser(user);
         return user;
       }
@@ -91,7 +108,7 @@ export const api = {
         return user;
       },
       () => {
-        const user = localStore.register(username, role);
+        const user = localStore.register(username, password, role);
         this.setCurrentUser(user);
         return user;
       }
