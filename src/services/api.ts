@@ -177,7 +177,7 @@ export const api = {
       async () => {
         const newGroup = await firestoreService.createGroup(payload);
         try {
-          localStore.createGroup(payload);
+          localStore.upsertGroup(newGroup);
         } catch {}
         return newGroup;
       },
@@ -258,7 +258,7 @@ export const api = {
       async () => {
         const res = await firestoreService.submitActivity(activityData);
         try {
-          localStore.submitActivity(activityData);
+          localStore.upsertActivity(res.activity);
         } catch {}
         return res;
       },
@@ -274,7 +274,7 @@ export const api = {
       async () => {
         const res = await firestoreService.approveActivity(activityId, creatorId);
         try {
-          localStore.approveActivity(activityId, creatorId);
+          localStore.upsertActivity(res.activity);
         } catch {}
         return res;
       },
@@ -291,7 +291,7 @@ export const api = {
       async () => {
         const res = await firestoreService.rejectActivity(activityId, creatorId, rejectionReason);
         try {
-          localStore.rejectActivity(activityId, creatorId, rejectionReason);
+          localStore.upsertActivity(res.activity);
         } catch {}
         return res;
       },

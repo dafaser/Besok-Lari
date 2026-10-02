@@ -719,6 +719,25 @@ export const firestoreService = {
     const durationMinutes = Math.max(1, endMinutes - startMinutes);
     const distanceKm = Number(activityData.distanceKm);
 
+    // Deduplication check: prevent accidental double submission (e.g. rapid clicks or network retries)
+    const existingSnap = await getDocs(collection(db, 'activities'));
+    for (const d of existingSnap.docs) {
+      const ea = d.data() as Activity;
+      if (
+        ea.userId === activityData.userId &&
+        ea.groupId === activityData.groupId &&
+        ea.date === activityData.date &&
+        ea.startTime === activityData.startTime &&
+        ea.endTime === activityData.endTime &&
+        Math.abs(Number(ea.distanceKm) - distanceKm) < 0.01
+      ) {
+        return {
+          message: 'Aktivitas lari sudah tercatat!',
+          activity: ea,
+        };
+      }
+    }
+
     const userSnap = await getDoc(doc(db, 'users', activityData.userId));
     const userObj = userSnap.exists() ? (userSnap.data() as User) : null;
     const username =
@@ -940,10 +959,21 @@ export const firestoreService = {
       }
 
       // 2. Sync groups
-      if (Array.isArray(local.groups)) {
+      if (Array.isArray(local.groups) && local.groups.length > 0) {
+        const groupsSnap = await getDocs(collection(db, 'groups'));
+        const existingGroupIds = new Set<string>();
+        const existingGroupCodes = new Set<string>();
+        groupsSnap.forEach((d) => {
+          const g = d.data() as Group;
+          existingGroupIds.add(g.id);
+          if (g.inviteCode) existingGroupCodes.add(g.inviteCode.toUpperCase());
+        });
+
         for (const g of local.groups) {
           if (g.id && g.name) {
-            await setDoc(doc(db, 'groups', g.id), g, { merge: true });
+            if (!existingGroupIds.has(g.id) && (!g.inviteCode || !existingGroupCodes.has(g.inviteCode.toUpperCase()))) {
+              await setDoc(doc(db, 'groups', g.id), g, { merge: true });
+            }
           }
         }
       }
@@ -958,11 +988,31 @@ export const firestoreService = {
         }
       }
 
-      // 4. Sync activities
-      if (Array.isArray(local.activities)) {
+      // 4. Sync activities (safely deduplicated, never creating duplicate runs)
+      if (Array.isArray(local.activities) && local.activities.length > 0) {
+        const actSnap = await getDocs(collection(db, 'activities'));
+        const existingMap = new Map<string, Activity>();
+        actSnap.forEach((d) => {
+          const act = d.data() as Activity;
+          existingMap.set(act.id, act);
+        });
+
         for (const a of local.activities) {
           if (a.id && a.groupId && a.userId) {
-            await setDoc(doc(db, 'activities', a.id), a, { merge: true });
+            const existsById = existingMap.has(a.id);
+            const existsByContent = Array.from(existingMap.values()).some(
+              (ea) =>
+                ea.userId === a.userId &&
+                ea.groupId === a.groupId &&
+                ea.date === a.date &&
+                ea.startTime === a.startTime &&
+                ea.endTime === a.endTime &&
+                Math.abs(Number(ea.distanceKm) - Number(a.distanceKm)) < 0.01
+            );
+
+            if (!existsById && !existsByContent) {
+              await setDoc(doc(db, 'activities', a.id), a, { merge: true });
+            }
           }
         }
       }

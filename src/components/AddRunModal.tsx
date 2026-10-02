@@ -141,6 +141,7 @@ export const AddRunModal: React.FC<AddRunModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg(null);
 
     const dist = parseFloat(distanceKm);

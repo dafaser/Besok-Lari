@@ -538,6 +538,42 @@ export const localStore = {
     return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
+  upsertGroup(group: Group): void {
+    const db = getDb();
+    const idx = db.groups.findIndex((g) => g.id === group.id);
+    if (idx >= 0) {
+      db.groups[idx] = { ...db.groups[idx], ...group };
+    } else {
+      db.groups.unshift(group);
+    }
+    saveDb(db);
+  },
+
+  upsertActivity(activity: Activity): void {
+    const db = getDb();
+    const idx = db.activities.findIndex((a) => a.id === activity.id);
+    if (idx >= 0) {
+      db.activities[idx] = { ...db.activities[idx], ...activity };
+    } else {
+      // Deduplication: if an equivalent activity already exists with a different temporary id, update it
+      const dupIdx = db.activities.findIndex(
+        (a) =>
+          a.userId === activity.userId &&
+          a.groupId === activity.groupId &&
+          a.date === activity.date &&
+          a.startTime === activity.startTime &&
+          a.endTime === activity.endTime &&
+          Math.abs(Number(a.distanceKm) - Number(activity.distanceKm)) < 0.01
+      );
+      if (dupIdx >= 0) {
+        db.activities[dupIdx] = { ...db.activities[dupIdx], ...activity };
+      } else {
+        db.activities.unshift(activity);
+      }
+    }
+    saveDb(db);
+  },
+
   submitActivity(activityData: {
     groupId: string;
     userId: string;
@@ -551,8 +587,33 @@ export const localStore = {
     note?: string;
   }): { message: string; activity: Activity } {
     const db = getDb();
+
+    // Deduplication check: check if activity already exists in local DB
+    const existing = db.activities.find(
+      (a) =>
+        a.userId === activityData.userId &&
+        a.groupId === activityData.groupId &&
+        a.date === activityData.date &&
+        a.startTime === activityData.startTime &&
+        a.endTime === activityData.endTime &&
+        Math.abs(Number(a.distanceKm) - Number(activityData.distanceKm)) < 0.01
+    );
+    if (existing) {
+      return { message: 'Activity already submitted', activity: existing };
+    }
+
     const user = db.users.find((u) => u.id === activityData.userId);
     const group = db.groups.find((g) => g.id === activityData.groupId);
+
+    // Calculate actual duration in minutes
+    const [startH, startM] = activityData.startTime.split(':').map(Number);
+    const [endH, endM] = activityData.endTime.split(':').map(Number);
+    let startMinutes = startH * 60 + startM;
+    let endMinutes = endH * 60 + endM;
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60;
+    }
+    const durationMinutes = Math.max(1, endMinutes - startMinutes);
 
     const isSuspicious = Number(activityData.distanceKm) > 42;
     const suspiciousReason = isSuspicious ? 'Distance unusually long (>42 km)' : null;
@@ -572,7 +633,7 @@ export const localStore = {
       distanceKm: Number(activityData.distanceKm),
       startTime: activityData.startTime,
       endTime: activityData.endTime,
-      durationMinutes: 45,
+      durationMinutes,
       photoUrl: activityData.photoUrl,
       photoUrls: activityData.photoUrls || (activityData.photoUrl ? [activityData.photoUrl] : []),
       note: activityData.note,
