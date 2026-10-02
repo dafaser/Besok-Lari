@@ -68,9 +68,27 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [removeParticipantTarget, setRemoveParticipantTarget] = useState<{ userId: string; username: string } | null>(null);
+  const [isRemovingParticipant, setIsRemovingParticipant] = useState(false);
 
-  // Edit group form state (if creator)
-  const isCreator = currentUser.id === group.creatorId;
+  const handleConfirmRemoveParticipant = async () => {
+    if (!removeParticipantTarget) return;
+    setIsRemovingParticipant(true);
+    try {
+      await onRemoveParticipant(removeParticipantTarget.userId, removeParticipantTarget.username);
+    } finally {
+      setIsRemovingParticipant(false);
+      setRemoveParticipantTarget(null);
+    }
+  };
+
+  // Edit group form state (if creator or admin/host)
+  const isCreator =
+    currentUser.id === group.creatorId ||
+    currentUser.role === 'CREATOR' ||
+    currentUser.role === 'ADMIN' ||
+    currentUser.username.toLowerCase() === 'admin' ||
+    currentUser.username.toLowerCase() === 'dafasr';
   const isMember = Boolean(
     group.isMember || members.some((m) => m.userId === currentUser.id) || currentUser.id === group.creatorId
   );
@@ -782,11 +800,13 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                     {/* Creator can remove participant */}
                     {isCreator && !isCreatorSelf && (
                       <button
-                        onClick={() => onRemoveParticipant(m.userId, m.username)}
-                        className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Remove participant"
+                        type="button"
+                        onClick={() => setRemoveParticipantTarget({ userId: m.userId, username: m.username })}
+                        className="px-2.5 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer text-xs font-bold flex items-center gap-1 border border-rose-200/60"
+                        title="Hapus runner dari challenge"
                       >
-                        <UserX className="w-4 h-4" />
+                        <UserX className="w-3.5 h-3.5" />
+                        <span>Hapus</span>
                       </button>
                     )}
                   </div>
@@ -922,6 +942,67 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                 </div>
               </div>
 
+              {/* MANAGE RUNNERS & PARTICIPANTS (Hapus Pelari Lain) */}
+              <div className="p-5 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wider text-stone-800 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-emerald-600" />
+                      <span>Manage Runners & Anggota ({members.filter((m) => m.userId !== group.creatorId).length})</span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      Sebagai host challenge, Anda dapat mengeluarkan atau menghapus pelari lain yang telah bergabung ke challenge ini.
+                    </p>
+                  </div>
+                </div>
+
+                {members.filter((m) => m.userId !== group.creatorId).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-white border border-stone-200/80 text-center text-xs text-stone-500">
+                    Belum ada pelari lain yang bergabung. Bagikan kode invite <span className="font-mono font-bold text-stone-700">{group.inviteCode}</span> untuk mengajak pelari lain!
+                  </div>
+                ) : (
+                  <div className="divide-y divide-stone-200/60 bg-white rounded-xl border border-stone-200 overflow-hidden">
+                    {members
+                      .filter((m) => m.userId !== group.creatorId)
+                      .map((m) => (
+                        <div
+                          key={m.userId}
+                          className="p-3.5 flex items-center justify-between gap-3 hover:bg-stone-50/60 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                              {m.username[0]?.toUpperCase() || 'P'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-stone-900 truncate flex items-center gap-1.5">
+                                <span>{m.username}</span>
+                                {m.isCompleted && (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                                    SELESAI 🎉
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-stone-500 font-mono">
+                                {m.totalApprovedKm.toFixed(1)} KM • {m.progressPercent}% target
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setRemoveParticipantTarget({ userId: m.userId, username: m.username })}
+                            className="px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 active:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                            title={`Keluarkan ${m.username} dari challenge`}
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            <span>Hapus Runner</span>
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               {/* DANGER ZONE: Delete Challenge */}
               <div className="p-5 bg-rose-50/70 rounded-2xl border border-rose-200 mt-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -950,6 +1031,20 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* Confirmation Modal for Removing Participant */}
+      {removeParticipantTarget && (
+        <ConfirmationModal
+          isOpen={Boolean(removeParticipantTarget)}
+          onClose={() => setRemoveParticipantTarget(null)}
+          onConfirm={handleConfirmRemoveParticipant}
+          title={`Hapus @${removeParticipantTarget.username} dari Challenge?`}
+          message={`Apakah Anda yakin ingin mengeluarkan pelari @${removeParticipantTarget.username} dari challenge "${group.name}"? Data keanggotaan pelari ini dalam challenge akan dihapus.`}
+          confirmText={isRemovingParticipant ? 'Menghapus...' : 'Ya, Hapus Runner'}
+          cancelText="Batal"
+          type="reject"
+        />
       )}
 
       {/* Confirmation Modal for Group Deletion */}

@@ -86,19 +86,42 @@ export const firestoreService = {
     }
 
     const userObj = matchedUser as User & { password?: string };
+    const isNamedAdmin =
+      cleanUsername.toLowerCase().includes('admin') ||
+      cleanUsername.toLowerCase() === 'dafasr' ||
+      cleanUsername.toLowerCase() === 'host' ||
+      cleanUsername.toLowerCase() === 'creator';
+    const effectiveRole: 'USER' | 'CREATOR' | 'ADMIN' = isNamedAdmin ? 'CREATOR' : (userObj.role || 'USER');
+
+    if (userObj.role !== effectiveRole) {
+      userObj.role = effectiveRole;
+      setDoc(doc(db, 'users', userObj.id), { role: effectiveRole }, { merge: true }).catch(() => {});
+    }
+
     const user: User = {
       id: userObj.id,
       username: userObj.username,
       name: userObj.name,
       avatar: userObj.avatar,
-      role: userObj.role,
+      role: effectiveRole,
       createdAt: userObj.createdAt,
     };
     return user;
   },
 
-  async register(username: string, password?: string, role: 'USER' | 'CREATOR' = 'USER'): Promise<User> {
+  async register(
+    username: string,
+    password?: string,
+    role: 'USER' | 'CREATOR' | 'ADMIN' = 'USER'
+  ): Promise<User> {
     const cleanUsername = username.trim();
+    const isNamedAdmin =
+      cleanUsername.toLowerCase().includes('admin') ||
+      cleanUsername.toLowerCase() === 'dafasr' ||
+      cleanUsername.toLowerCase() === 'host' ||
+      cleanUsername.toLowerCase() === 'creator';
+    const effectiveRole: 'USER' | 'CREATOR' | 'ADMIN' = isNamedAdmin ? 'CREATOR' : role;
+
     const snap = await getDocs(collection(db, 'users'));
     let existing: User | null = null;
 
@@ -110,14 +133,19 @@ export const firestoreService = {
     });
 
     if (existing) {
-      return existing;
+      const existingUser = existing as User;
+      if (isNamedAdmin && existingUser.role !== 'CREATOR') {
+        existingUser.role = 'CREATOR';
+        setDoc(doc(db, 'users', existingUser.id), { role: 'CREATOR' }, { merge: true }).catch(() => {});
+      }
+      return existingUser;
     }
 
     const newUser: User & { password?: string } = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       username: cleanUsername,
       name: cleanUsername,
-      role,
+      role: effectiveRole,
       createdAt: new Date().toISOString(),
       avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(cleanUsername)}`,
       password: password || 'password123',
@@ -491,8 +519,18 @@ export const firestoreService = {
       throw new Error('Unauthorized');
     }
 
-    const memId = `mem_${groupId}_${userId}`;
-    await deleteDoc(doc(db, 'memberships', memId));
+    const memSnap = await getDocs(collection(db, 'memberships'));
+    const toDelete: Promise<void>[] = [];
+    memSnap.forEach((d) => {
+      const m = d.data() as MembershipRecord;
+      if (m.groupId === groupId && m.userId === userId) {
+        toDelete.push(deleteDoc(doc(db, 'memberships', d.id)));
+      }
+    });
+    const defaultMemId = `mem_${groupId}_${userId}`;
+    toDelete.push(deleteDoc(doc(db, 'memberships', defaultMemId)).catch(() => {}));
+
+    await Promise.all(toDelete);
 
     return { message: 'Participant removed successfully' };
   },
@@ -591,6 +629,7 @@ export const firestoreService = {
     startTime: string;
     endTime: string;
     photoUrl: string;
+    photoUrls?: string[];
     note?: string;
   }): Promise<{ message: string; activity: Activity }> {
     const [startH, startM] = activityData.startTime.split(':').map(Number);
@@ -607,6 +646,11 @@ export const firestoreService = {
     const username = userSnap.exists() ? (userSnap.data() as User).username : 'Pelari';
 
     const actId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const photos = activityData.photoUrls && activityData.photoUrls.length > 0
+      ? activityData.photoUrls
+      : activityData.photoUrl ? [activityData.photoUrl] : [];
+    const primaryPhoto = photos[0] || activityData.photoUrl || 'https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?auto=format&fit=crop&w=800&q=80';
+
     const newActivity: Activity = {
       id: actId,
       groupId: activityData.groupId,
@@ -617,9 +661,8 @@ export const firestoreService = {
       endTime: activityData.endTime,
       durationMinutes,
       distanceKm,
-      photoUrl:
-        activityData.photoUrl ||
-        'https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?auto=format&fit=crop&w=800&q=80',
+      photoUrl: primaryPhoto,
+      photoUrls: photos,
       note: activityData.note || '',
       status: 'PENDING',
       createdAt: new Date().toISOString(),

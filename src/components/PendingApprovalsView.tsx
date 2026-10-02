@@ -125,6 +125,11 @@ export const PendingApprovalsView: React.FC<PendingApprovalsViewProps> = ({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       referrerPolicy="no-referrer"
                     />
+                    {act.photoUrls && act.photoUrls.length > 1 && (
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-stone-900/80 text-white font-mono text-[9px] font-bold z-10 flex items-center gap-1 shadow-xs">
+                        📸 {act.photoUrls.length} Foto
+                      </span>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold text-center p-1">
                       [VIEW PHOTO]
                     </div>

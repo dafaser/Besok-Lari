@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Calendar, MapPin, Clock, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, MapPin, Clock, ChevronLeft, ChevronRight, Images } from 'lucide-react';
 import { Activity } from '../types';
 
 interface PhotoViewModalProps {
@@ -8,11 +8,34 @@ interface PhotoViewModalProps {
 }
 
 export const PhotoViewModal: React.FC<PhotoViewModalProps> = ({ activity, onClose }) => {
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+
+  useEffect(() => {
+    setActivePhotoIdx(0);
+  }, [activity]);
+
   if (!activity) return null;
+
+  const photos =
+    activity.photoUrls && activity.photoUrls.length > 0
+      ? activity.photoUrls
+      : activity.photoUrl
+      ? [activity.photoUrl]
+      : [];
+
+  const currentPhoto = photos[activePhotoIdx] || activity.photoUrl;
+
+  const handlePrev = () => {
+    setActivePhotoIdx((prev) => (prev > 0 ? prev - 1 : photos.length - 1));
+  };
+
+  const handleNext = () => {
+    setActivePhotoIdx((prev) => (prev < photos.length - 1 ? prev + 1 : 0));
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-stone-900 text-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-stone-800 flex flex-col max-h-[90vh]">
+      <div className="bg-stone-900 text-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-stone-800 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="p-4 px-6 flex items-center justify-between border-b border-stone-800 bg-stone-900/80">
           <div className="flex items-center gap-3">
@@ -33,6 +56,12 @@ export const PhotoViewModal: React.FC<PhotoViewModalProps> = ({ activity, onClos
                 >
                   {activity.status}
                 </span>
+                {photos.length > 1 && (
+                  <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-stone-800 text-stone-300 border border-stone-700">
+                    <Images className="w-3 h-3 text-emerald-400" />
+                    <span>{activePhotoIdx + 1}/{photos.length}</span>
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-stone-400">{activity.groupName || 'Besok Lari Challenge'}</p>
             </div>
@@ -46,13 +75,55 @@ export const PhotoViewModal: React.FC<PhotoViewModalProps> = ({ activity, onClos
         </div>
 
         {/* Photo Container */}
-        <div className="flex-1 overflow-auto bg-black flex items-center justify-center min-h-[250px] p-2">
+        <div className="flex-1 overflow-hidden bg-black relative flex flex-col items-center justify-center min-h-[280px] p-2">
           <img
-            src={activity.photoUrl}
+            src={currentPhoto}
             alt={`Run proof for ${activity.username}`}
-            className="max-h-[60vh] max-w-full object-contain rounded-lg"
+            className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-md"
             referrerPolicy="no-referrer"
           />
+
+          {/* Prev / Next controls if multiple photos */}
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-stone-900/80 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-lg cursor-pointer transition-colors"
+                title="Foto sebelumnya"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-stone-900/80 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-lg cursor-pointer transition-colors"
+                title="Foto berikutnya"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          {/* Thumbnails bar if multiple photos */}
+          {photos.length > 1 && (
+            <div className="flex items-center gap-2 mt-2 py-1 px-3 bg-stone-900/90 rounded-2xl border border-stone-800">
+              {photos.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActivePhotoIdx(i)}
+                  className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                    activePhotoIdx === i
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/40 scale-105'
+                      : 'border-stone-700 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={p} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Details Footer */}

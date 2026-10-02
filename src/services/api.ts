@@ -233,10 +233,17 @@ export const api = {
     startTime: string;
     endTime: string;
     photoUrl: string;
+    photoUrls?: string[];
     note?: string;
   }): Promise<{ message: string; activity: Activity }> {
     return tryFirestore(
-      () => firestoreService.submitActivity(activityData),
+      async () => {
+        const res = await firestoreService.submitActivity(activityData);
+        try {
+          localStore.submitActivity(activityData);
+        } catch {}
+        return res;
+      },
       () => localStore.submitActivity(activityData)
     );
   },
@@ -246,7 +253,13 @@ export const api = {
     creatorId: string
   ): Promise<{ message: string; activity: Activity }> {
     return tryFirestore(
-      () => firestoreService.approveActivity(activityId, creatorId),
+      async () => {
+        const res = await firestoreService.approveActivity(activityId, creatorId);
+        try {
+          localStore.approveActivity(activityId, creatorId);
+        } catch {}
+        return res;
+      },
       () => localStore.approveActivity(activityId, creatorId)
     );
   },
@@ -257,7 +270,13 @@ export const api = {
     rejectionReason?: string
   ): Promise<{ message: string; activity: Activity }> {
     return tryFirestore(
-      () => firestoreService.rejectActivity(activityId, creatorId, rejectionReason),
+      async () => {
+        const res = await firestoreService.rejectActivity(activityId, creatorId, rejectionReason);
+        try {
+          localStore.rejectActivity(activityId, creatorId, rejectionReason);
+        } catch {}
+        return res;
+      },
       () => localStore.rejectActivity(activityId, creatorId, rejectionReason)
     );
   },

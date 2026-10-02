@@ -17,6 +17,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 }) => {
   // Default to Login mode as requested
   const [isRegister, setIsRegister] = useState(false);
+  const [registerRole, setRegisterRole] = useState<'USER' | 'CREATOR'>('USER');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -52,9 +53,21 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     try {
       if (isRegister) {
-        // Normal user role by default on sign up
-        await onRegister(cleanUsername, password, 'USER');
-        onShowToast(`Yeay! Selamat datang di Besok Lari, ${cleanUsername}! 🏃🎉`, 'success');
+        // Auto-detect admin/host by username or toggle
+        const isNamedAdmin =
+          cleanUsername.toLowerCase().includes('admin') ||
+          cleanUsername.toLowerCase() === 'dafasr' ||
+          cleanUsername.toLowerCase() === 'host' ||
+          cleanUsername.toLowerCase() === 'creator';
+        const assignedRole: 'USER' | 'CREATOR' = isNamedAdmin ? 'CREATOR' : registerRole;
+
+        await onRegister(cleanUsername, password, assignedRole);
+        onShowToast(
+          assignedRole === 'CREATOR'
+            ? `Selamat datang Admin / Host ${cleanUsername}! Siap kelola challenge & verifikasi lari 👑`
+            : `Yeay! Selamat datang di Besok Lari, ${cleanUsername}! 🏃🎉`,
+          'success'
+        );
       } else {
         await onLogin(cleanUsername, password);
         onShowToast(`Halo ${cleanUsername}, selamat datang kembali! Siap lari? 👟✨`, 'success');
@@ -183,6 +196,41 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Role selector on Register */}
+          {isRegister && (
+            <div className="pt-1">
+              <label className="block text-xs font-cute font-extrabold uppercase tracking-wider text-stone-700 mb-1.5">
+                Tipe Akun
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegisterRole('USER')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-cute font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                    registerRole === 'USER'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                      : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  <span className="text-sm">🏃 Pelari</span>
+                  <span className="text-[10px] font-normal text-stone-500">Ikut challenge & catat lari</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegisterRole('CREATOR')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-cute font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                    registerRole === 'CREATOR'
+                      ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-xs'
+                      : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  <span className="text-sm">👑 Host / Admin</span>
+                  <span className="text-[10px] font-normal text-stone-500">Bikin grup & verifikasi</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Submit Action Button */}
           <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Users, AlertCircle, ArrowRight, Check } from 'lucide-react';
+import { X, AlertCircle, ArrowRight } from 'lucide-react';
 import { Group } from '../types';
 
 interface JoinGroupModalProps {
@@ -52,10 +52,6 @@ export const JoinGroupModal: React.FC<JoinGroupModalProps> = ({
     }
   };
 
-  const handleQuickSelect = (code: string) => {
-    setInviteCode(code);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 relative max-h-[92vh] sm:max-h-none overflow-y-auto my-0 sm:my-8 animate-in slide-in-from-bottom duration-200">
@@ -102,36 +98,6 @@ export const JoinGroupModal: React.FC<JoinGroupModalProps> = ({
             />
           </div>
 
-          {/* Quick preset selector for testing convenience */}
-          {availableGroups.length > 0 && (
-            <div>
-              <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">
-                Or pick an open challenge:
-              </span>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                {availableGroups.map((g) => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => handleQuickSelect(g.inviteCode)}
-                    className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
-                      inviteCode === g.inviteCode
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold'
-                        : 'border-stone-200 hover:bg-stone-50 text-stone-700'
-                    }`}
-                  >
-                    <div>
-                      <span className="font-bold block">{g.name}</span>
-                      <span className="text-[10px] text-stone-400 font-mono">
-                        Goal: {g.targetKm} KM • Code: {g.inviteCode}
-                      </span>
-                    </div>
-                    {inviteCode === g.inviteCode && <Check className="w-4 h-4 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="pt-2">
             <button

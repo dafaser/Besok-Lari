@@ -144,11 +144,23 @@ function FunRunApp() {
           console.error(e);
         }
 
-        // If user is creator of any group (or has CREATOR role), fetch pending approvals for their groups
+        // If user is creator of any group, has CREATOR/ADMIN role, or is admin/dafasr, fetch pending approvals
         const hasCreatedGroups = allGroups.some((g: any) => g.creatorId === currentUser.id);
-        if (hasCreatedGroups || currentUser.role === 'CREATOR') {
+        const isHostOrAdmin =
+          currentUser.role === 'CREATOR' ||
+          currentUser.role === 'ADMIN' ||
+          currentUser.username.toLowerCase() === 'admin' ||
+          currentUser.username.toLowerCase() === 'dafasr';
+
+        if (hasCreatedGroups || isHostOrAdmin) {
           try {
-            const pending = await api.getActivities({ creatorId: currentUser.id, status: 'PENDING' });
+            // For admins/hosts (like dafasr or CREATOR), fetch all pending approvals across groups
+            // so testing runs never disappear from the queue
+            const queryParams: { status: string; creatorId?: string } = { status: 'PENDING' };
+            if (!isHostOrAdmin && hasCreatedGroups) {
+              queryParams.creatorId = currentUser.id;
+            }
+            const pending = await api.getActivities(queryParams);
             setPendingApprovals(pending);
           } catch (e) {
             console.error(e);
@@ -210,14 +222,6 @@ function FunRunApp() {
     }
   };
 
-  const handleResetDemo = async () => {
-    if (window.confirm('Reset demo back to start? All newly logged activities will be wiped.')) {
-      await api.resetDemo();
-      showToast('Demo data reset back to start!', 'success');
-      window.location.reload();
-    }
-  };
-
   // Run Submission Handler (Rule 12 & 13)
   const handleSubmitRun = async (data: {
     groupId: string;
@@ -226,6 +230,7 @@ function FunRunApp() {
     startTime: string;
     endTime: string;
     photoUrl: string;
+    photoUrls?: string[];
     note?: string;
   }) => {
     if (!currentUser) return;
@@ -280,13 +285,15 @@ function FunRunApp() {
     return res.group;
   };
 
-  // Remove participant handler (Rule 27)
+  // Remove participant handler
   const handleRemoveParticipant = async (userId: string, username: string) => {
     if (!activeGroup || !currentUser) return;
-    if (window.confirm(`Remove ${username} from ${activeGroup.name}?`)) {
+    try {
       await api.removeParticipant(activeGroup.id, userId, currentUser.id);
-      showToast(`Removed runner ${username} from the group.`, 'info');
+      showToast(`Runner @${username} berhasil dikeluarkan dari challenge.`, 'info');
       await refreshData();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal mengeluarkan runner.', 'error');
     }
   };
 
@@ -349,11 +356,16 @@ function FunRunApp() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenAddRun={() => setIsAddRunOpen(true)}
-        onResetDemo={handleResetDemo}
         pendingApprovalsCount={pendingApprovals.length}
         availableUsers={allUsers}
         onSwitchUser={handleSwitchUser}
-        hasCreatedGroups={groups.some((g) => g.creatorId === currentUser?.id)}
+        hasCreatedGroups={
+          groups.some((g) => g.creatorId === currentUser?.id) ||
+          currentUser?.role === 'CREATOR' ||
+          currentUser?.role === 'ADMIN' ||
+          currentUser?.username?.toLowerCase() === 'admin' ||
+          currentUser?.username?.toLowerCase() === 'dafasr'
+        }
       />
 
       {/* Main Content Area - Handphone First & Mobile Friendly */}

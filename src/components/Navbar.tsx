@@ -8,7 +8,6 @@ import {
   CheckSquare,
   Plus,
   LogOut,
-  RotateCcw,
   ChevronDown,
   Flame,
   Bell,
@@ -33,7 +32,7 @@ interface NavbarProps {
   currentUser: User | null;
   onLogout: () => void;
   onOpenAddRun: () => void;
-  onResetDemo: () => void;
+  onResetDemo?: () => void;
   pendingApprovalsCount: number;
   availableUsers?: User[];
   onSwitchUser?: (username: string) => void;
@@ -46,13 +45,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onLogout,
   onOpenAddRun,
-  onResetDemo,
+  onResetDemo: _onResetDemo,
   pendingApprovalsCount,
   availableUsers = [],
   onSwitchUser,
   hasCreatedGroups = false,
 }) => {
-  const isCreator = currentUser?.role === 'CREATOR' || hasCreatedGroups;
+  const isCreator =
+    currentUser?.role === 'CREATOR' ||
+    currentUser?.role === 'ADMIN' ||
+    currentUser?.username?.toLowerCase() === 'admin' ||
+    currentUser?.username?.toLowerCase() === 'dafasr' ||
+    hasCreatedGroups;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -250,17 +254,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
 
                     <div className="h-px bg-stone-100 my-1.5" />
-
-                    <button
-                      onClick={() => {
-                        onResetDemo();
-                        setIsUserMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-600 hover:text-stone-900 hover:bg-stone-50 flex items-center gap-2 font-medium"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Reset Demo Data</span>
-                    </button>
 
                     <button
                       onClick={() => {

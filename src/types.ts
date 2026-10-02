@@ -3,7 +3,7 @@ export interface User {
   username: string;
   name: string;
   avatar?: string;
-  role?: 'USER' | 'CREATOR';
+  role?: 'USER' | 'CREATOR' | 'ADMIN';
   createdAt: string;
 }
 
@@ -47,6 +47,7 @@ export interface Activity {
   endTime: string; // HH:mm
   durationMinutes: number;
   photoUrl: string;
+  photoUrls?: string[];
   note?: string;
   status: ActivityStatus;
   rejectionReason?: string | null;
