@@ -270,7 +270,12 @@ export const localStore = {
 
   getGroups(userId?: string): Group[] {
     const db = getDb();
-    return db.groups.map((g) => {
+    let groups = db.groups;
+    if (userId) {
+      groups = groups.filter((g) => !(g.kickedUserIds || []).includes(userId));
+    }
+
+    return groups.map((g) => {
       const isMember = userId ? db.memberships.some((m) => m.groupId === g.id && m.userId === userId) : false;
       const isCreator = userId ? g.creatorId === userId : false;
 
@@ -297,6 +302,10 @@ export const localStore = {
     const group = db.groups.find((g) => g.id === groupId);
     if (!group) throw new Error('Group not found');
 
+    if (userId && (group.kickedUserIds || []).includes(userId)) {
+      throw new Error('Anda telah dikeluarkan dari challenge ini oleh host.');
+    }
+
     const isMember = userId ? db.memberships.some((m) => m.groupId === group.id && m.userId === userId) : false;
     const isCreator = userId ? group.creatorId === userId : false;
 
@@ -320,8 +329,22 @@ export const localStore = {
       };
     });
 
+    const activeMemberIds = new Set(groupMemberships.map((m) => m.userId));
+    if (group.creatorId) activeMemberIds.add(group.creatorId);
+
     const recentApproved = db.activities
-      .filter((a) => a.groupId === groupId && a.status === 'APPROVED')
+      .filter((a) => a.groupId === groupId && a.status === 'APPROVED' && activeMemberIds.has(a.userId))
+      .map((a) => {
+        const u = db.users.find((user) => user.id === a.userId);
+        const resolvedName =
+          (a.username && a.username.toLowerCase() !== 'runner' && a.username.toLowerCase() !== 'pelari' ? a.username : '') ||
+          u?.username ||
+          'Pelari';
+        return {
+          ...a,
+          username: resolvedName,
+        };
+      })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 10);
 
@@ -388,6 +411,11 @@ export const localStore = {
     const group = db.groups.find((g) => g.inviteCode.toUpperCase() === cleanCode);
     if (!group) throw new Error('Invalid invite code');
 
+    // Block kicked users from rejoining
+    if ((group.kickedUserIds || []).includes(userId)) {
+      throw new Error('Anda telah dikeluarkan dari challenge ini oleh host dan tidak dapat bergabung kembali.');
+    }
+
     const alreadyMember = db.memberships.some((m) => m.groupId === group.id && m.userId === userId);
     if (!alreadyMember) {
       db.memberships.push({
@@ -430,11 +458,33 @@ export const localStore = {
     const db = getDb();
     const group = db.groups.find((g) => g.id === groupId);
     if (!group) throw new Error('Group not found');
-    if (group.creatorId !== requestingUserId && userId !== requestingUserId) {
+    const reqUser = db.users.find((u) => u.id === requestingUserId);
+    const isPrivileged =
+      group.creatorId === requestingUserId ||
+      userId === requestingUserId ||
+      reqUser?.role === 'CREATOR' ||
+      reqUser?.role === 'ADMIN' ||
+      reqUser?.username.toLowerCase() === 'admin' ||
+      reqUser?.username.toLowerCase() === 'dafasr';
+
+    if (!isPrivileged) {
       throw new Error('Unauthorized');
     }
 
+    // 1. Mark user as kicked in group
+    if (!group.kickedUserIds) {
+      group.kickedUserIds = [];
+    }
+    if (!group.kickedUserIds.includes(userId)) {
+      group.kickedUserIds.push(userId);
+    }
+
+    // 2. Remove memberships
     db.memberships = db.memberships.filter((m) => !(m.groupId === groupId && m.userId === userId));
+
+    // 3. Remove ALL activities and running history for this user in this group
+    db.activities = db.activities.filter((a) => !(a.groupId === groupId && a.userId === userId));
+
     saveDb(db);
     return { message: 'Participant removed successfully' };
   },
@@ -470,11 +520,13 @@ export const localStore = {
   submitActivity(activityData: {
     groupId: string;
     userId: string;
+    username?: string;
     date: string;
     distanceKm: number;
     startTime: string;
     endTime: string;
     photoUrl: string;
+    photoUrls?: string[];
     note?: string;
   }): { message: string; activity: Activity } {
     const db = getDb();
@@ -484,18 +536,24 @@ export const localStore = {
     const isSuspicious = Number(activityData.distanceKm) > 42;
     const suspiciousReason = isSuspicious ? 'Distance unusually long (>42 km)' : null;
 
+    const resolvedUsername =
+      activityData.username ||
+      user?.username ||
+      'Pelari';
+
     const newActivity: Activity = {
       id: `act_${Date.now()}`,
       groupId: activityData.groupId,
       groupName: group ? group.name : undefined,
       userId: activityData.userId,
-      username: user ? user.username : 'Runner',
+      username: resolvedUsername,
       date: activityData.date,
       distanceKm: Number(activityData.distanceKm),
       startTime: activityData.startTime,
       endTime: activityData.endTime,
       durationMinutes: 45,
       photoUrl: activityData.photoUrl,
+      photoUrls: activityData.photoUrls || (activityData.photoUrl ? [activityData.photoUrl] : []),
       note: activityData.note,
       status: 'PENDING',
       isSuspicious,

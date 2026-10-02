@@ -18,6 +18,7 @@ export interface Group {
   creatorUsername: string;
   inviteCode: string;
   maxParticipants?: number | null;
+  kickedUserIds?: string[];
   status: 'UPCOMING' | 'ACTIVE' | 'CLOSED';
   createdAt: string;
   isMember?: boolean;

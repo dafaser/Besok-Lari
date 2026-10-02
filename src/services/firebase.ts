@@ -8,6 +8,7 @@ import {
   collection,
   getDocs,
   getDocFromServer,
+  arrayUnion,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
@@ -86,24 +87,12 @@ export const firestoreService = {
     }
 
     const userObj = matchedUser as User & { password?: string };
-    const isNamedAdmin =
-      cleanUsername.toLowerCase().includes('admin') ||
-      cleanUsername.toLowerCase() === 'dafasr' ||
-      cleanUsername.toLowerCase() === 'host' ||
-      cleanUsername.toLowerCase() === 'creator';
-    const effectiveRole: 'USER' | 'CREATOR' | 'ADMIN' = isNamedAdmin ? 'CREATOR' : (userObj.role || 'USER');
-
-    if (userObj.role !== effectiveRole) {
-      userObj.role = effectiveRole;
-      setDoc(doc(db, 'users', userObj.id), { role: effectiveRole }, { merge: true }).catch(() => {});
-    }
-
     const user: User = {
       id: userObj.id,
       username: userObj.username,
       name: userObj.name,
       avatar: userObj.avatar,
-      role: effectiveRole,
+      role: userObj.role || 'USER',
       createdAt: userObj.createdAt,
     };
     return user;
@@ -115,13 +104,6 @@ export const firestoreService = {
     role: 'USER' | 'CREATOR' | 'ADMIN' = 'USER'
   ): Promise<User> {
     const cleanUsername = username.trim();
-    const isNamedAdmin =
-      cleanUsername.toLowerCase().includes('admin') ||
-      cleanUsername.toLowerCase() === 'dafasr' ||
-      cleanUsername.toLowerCase() === 'host' ||
-      cleanUsername.toLowerCase() === 'creator';
-    const effectiveRole: 'USER' | 'CREATOR' | 'ADMIN' = isNamedAdmin ? 'CREATOR' : role;
-
     const snap = await getDocs(collection(db, 'users'));
     let existing: User | null = null;
 
@@ -133,19 +115,14 @@ export const firestoreService = {
     });
 
     if (existing) {
-      const existingUser = existing as User;
-      if (isNamedAdmin && existingUser.role !== 'CREATOR') {
-        existingUser.role = 'CREATOR';
-        setDoc(doc(db, 'users', existingUser.id), { role: 'CREATOR' }, { merge: true }).catch(() => {});
-      }
-      return existingUser;
+      return existing as User;
     }
 
     const newUser: User & { password?: string } = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       username: cleanUsername,
       name: cleanUsername,
-      role: effectiveRole,
+      role: 'USER',
       createdAt: new Date().toISOString(),
       avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(cleanUsername)}`,
       password: password || 'password123',
@@ -213,6 +190,11 @@ export const firestoreService = {
     const groups: Group[] = [];
     groupsSnap.forEach((d) => {
       const g = d.data() as Group;
+      // If user was kicked from this challenge by host, do not show or list it
+      if (userId && (g.kickedUserIds || []).includes(userId)) {
+        return;
+      }
+
       const isMember = userId
         ? userMemberships.has(g.id) || g.creatorId === userId
         : false;
@@ -239,6 +221,11 @@ export const firestoreService = {
 
     const groupData = groupSnap.data() as Group;
 
+    // Check if user was kicked by host
+    if (userId && (groupData.kickedUserIds || []).includes(userId)) {
+      throw new Error('Anda telah dikeluarkan dari challenge ini oleh host.');
+    }
+
     const [membershipsSnap, activitiesSnap, usersSnap] = await Promise.all([
       getDocs(collection(db, 'memberships')),
       getDocs(collection(db, 'activities')),
@@ -250,14 +237,6 @@ export const firestoreService = {
       const m = d.data() as MembershipRecord;
       if (m.groupId === groupId) {
         memberships.push(m);
-      }
-    });
-
-    const activities: Activity[] = [];
-    activitiesSnap.forEach((d) => {
-      const a = d.data() as Activity;
-      if (a.groupId === groupId) {
-        activities.push(a);
       }
     });
 
@@ -273,12 +252,39 @@ export const firestoreService = {
         id: `mem_${groupId}_${groupData.creatorId}`,
         groupId,
         userId: groupData.creatorId,
-        username: groupData.creatorUsername || 'Host',
+        username: groupData.creatorUsername || usersMap[groupData.creatorId]?.username || 'Host',
         joinedAt: groupData.createdAt,
         role: 'HOST',
       };
       memberships.push(hostMembership);
     }
+
+    // CRITICAL: Only include activities for this group from users who are currently active members!
+    // If a user has been removed, their activities are excluded from the challenge entirely!
+    const activeMemberUserIds = new Set(memberships.map((m) => m.userId));
+    activeMemberUserIds.add(groupData.creatorId);
+
+    const activities: Activity[] = [];
+    activitiesSnap.forEach((d) => {
+      const a = d.data() as Activity;
+      if (a.groupId === groupId && activeMemberUserIds.has(a.userId)) {
+        const mem = memberships.find((m) => m.userId === a.userId);
+        const resolvedUsername =
+          (mem?.username && mem.username.toLowerCase() !== 'runner' && mem.username.toLowerCase() !== 'pelari' ? mem.username : '') ||
+          (a.userId === groupData.creatorId ? (groupData.creatorUsername || usersMap[groupData.creatorId]?.username || 'Host') : '') ||
+          (usersMap[a.userId]?.username && usersMap[a.userId].username.toLowerCase() !== 'runner' && usersMap[a.userId].username.toLowerCase() !== 'pelari' ? usersMap[a.userId].username : '') ||
+          (a.username && a.username.toLowerCase() !== 'runner' && a.username.toLowerCase() !== 'pelari' ? a.username : '') ||
+          usersMap[a.userId]?.name ||
+          mem?.username ||
+          a.username ||
+          'Pelari';
+
+        activities.push({
+          ...a,
+          username: resolvedUsername,
+        });
+      }
+    });
 
     const isMember = userId
       ? memberships.some((m) => m.userId === userId) || groupData.creatorId === userId
@@ -515,12 +521,35 @@ export const firestoreService = {
     }
 
     const group = snap.data() as Group;
-    if (group.creatorId !== requestingUserId && userId !== requestingUserId) {
+    const userSnap = await getDoc(doc(db, 'users', requestingUserId));
+    const requestingUser = userSnap.exists() ? (userSnap.data() as User) : null;
+    const isPrivileged =
+      group.creatorId === requestingUserId ||
+      userId === requestingUserId ||
+      requestingUser?.role === 'CREATOR' ||
+      requestingUser?.role === 'ADMIN' ||
+      requestingUser?.username.toLowerCase() === 'admin' ||
+      requestingUser?.username.toLowerCase() === 'dafasr';
+
+    if (!isPrivileged) {
       throw new Error('Unauthorized');
     }
 
+    const toDelete: Promise<any>[] = [];
+
+    // 1. Mark user as kicked on the group so they cannot view or rejoin
+    toDelete.push(
+      setDoc(
+        groupRef,
+        {
+          kickedUserIds: arrayUnion(userId),
+        },
+        { merge: true }
+      )
+    );
+
+    // 2. Delete membership records for this user in this group
     const memSnap = await getDocs(collection(db, 'memberships'));
-    const toDelete: Promise<void>[] = [];
     memSnap.forEach((d) => {
       const m = d.data() as MembershipRecord;
       if (m.groupId === groupId && m.userId === userId) {
@@ -530,9 +559,18 @@ export const firestoreService = {
     const defaultMemId = `mem_${groupId}_${userId}`;
     toDelete.push(deleteDoc(doc(db, 'memberships', defaultMemId)).catch(() => {}));
 
+    // 3. CRITICAL: Delete ALL activities & running history for this user in this group!
+    const actSnap = await getDocs(collection(db, 'activities'));
+    actSnap.forEach((d) => {
+      const a = d.data() as Activity;
+      if (a.groupId === groupId && a.userId === userId) {
+        toDelete.push(deleteDoc(doc(db, 'activities', d.id)));
+      }
+    });
+
     await Promise.all(toDelete);
 
-    return { message: 'Participant removed successfully' };
+    return { message: 'Participant and all associated activities removed successfully' };
   },
 
   async joinGroup(inviteCode: string, userId: string): Promise<{ message: string; group: Group }> {
@@ -552,6 +590,12 @@ export const firestoreService = {
     }
 
     const group: Group = matchedGroup;
+
+    // Block kicked users from rejoining
+    if ((group.kickedUserIds || []).includes(userId)) {
+      throw new Error('Anda telah dikeluarkan dari challenge ini oleh host dan tidak dapat bergabung kembali.');
+    }
+
     const membershipId = `mem_${group.id}_${userId}`;
     const memRef = doc(db, 'memberships', membershipId);
     const memSnap = await getDoc(memRef);
@@ -624,6 +668,7 @@ export const firestoreService = {
   async submitActivity(activityData: {
     groupId: string;
     userId: string;
+    username?: string;
     date: string;
     distanceKm: number;
     startTime: string;
@@ -643,7 +688,12 @@ export const firestoreService = {
     const distanceKm = Number(activityData.distanceKm);
 
     const userSnap = await getDoc(doc(db, 'users', activityData.userId));
-    const username = userSnap.exists() ? (userSnap.data() as User).username : 'Pelari';
+    const userObj = userSnap.exists() ? (userSnap.data() as User) : null;
+    const username =
+      activityData.username ||
+      userObj?.username ||
+      userObj?.name ||
+      'Pelari';
 
     const actId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const photos = activityData.photoUrls && activityData.photoUrls.length > 0

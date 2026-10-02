@@ -94,11 +94,11 @@ function FunRunApp() {
       setUserGroupIds(userGrps.map((g) => g.id));
 
       // Decide target group for Dashboard & Active view:
-      // 1. If user previously selected a valid group in allGroups, use it.
+      // 1. If user previously selected a group that they are actually in, use it.
       // 2. Otherwise default to a group the user actually joined.
       // 3. If the user hasn't joined any group yet, targetId is empty (no active challenge joined yet).
       let targetId = '';
-      if (selectedGroupId && allGroups.some((g) => g.id === selectedGroupId)) {
+      if (selectedGroupId && userGrps.some((g: any) => g.id === selectedGroupId)) {
         targetId = selectedGroupId;
       } else if (userGrps.length > 0) {
         targetId = userGrps[0].id;
@@ -116,8 +116,12 @@ function FunRunApp() {
           setRecentApprovedActivities(detail.recentApprovedActivities);
         } catch (detailErr) {
           console.error('Failed to load group detail', detailErr);
-          const fallbackGroup = allGroups.find((g) => g.id === targetId) || null;
-          setActiveGroup(fallbackGroup);
+          setSelectedGroupId('');
+          setActiveGroup(null);
+          setActiveGroupStats(null);
+          setActiveLeaderboard([]);
+          setActiveGroupMembers([]);
+          setRecentApprovedActivities([]);
         }
       } else {
         setActiveGroup(null);
@@ -144,23 +148,15 @@ function FunRunApp() {
           console.error(e);
         }
 
-        // If user is creator of any group, has CREATOR/ADMIN role, or is admin/dafasr, fetch pending approvals
+        // Fitur approval aktif ketika user membuat grup (menjadi host dari tantangan tersebut)
         const hasCreatedGroups = allGroups.some((g: any) => g.creatorId === currentUser.id);
-        const isHostOrAdmin =
-          currentUser.role === 'CREATOR' ||
-          currentUser.role === 'ADMIN' ||
-          currentUser.username.toLowerCase() === 'admin' ||
-          currentUser.username.toLowerCase() === 'dafasr';
 
-        if (hasCreatedGroups || isHostOrAdmin) {
+        if (hasCreatedGroups) {
           try {
-            // For admins/hosts (like dafasr or CREATOR), fetch all pending approvals across groups
-            // so testing runs never disappear from the queue
-            const queryParams: { status: string; creatorId?: string } = { status: 'PENDING' };
-            if (!isHostOrAdmin && hasCreatedGroups) {
-              queryParams.creatorId = currentUser.id;
-            }
-            const pending = await api.getActivities(queryParams);
+            const pending = await api.getActivities({
+              creatorId: currentUser.id,
+              status: 'PENDING',
+            });
             setPendingApprovals(pending);
           } catch (e) {
             console.error(e);
@@ -237,6 +233,7 @@ function FunRunApp() {
     await api.submitActivity({
       ...data,
       userId: currentUser.id,
+      username: currentUser.username,
     });
     showToast('Run submitted! Waiting for the challenge host to approve.', 'success');
     await refreshData();
@@ -359,13 +356,7 @@ function FunRunApp() {
         pendingApprovalsCount={pendingApprovals.length}
         availableUsers={allUsers}
         onSwitchUser={handleSwitchUser}
-        hasCreatedGroups={
-          groups.some((g) => g.creatorId === currentUser?.id) ||
-          currentUser?.role === 'CREATOR' ||
-          currentUser?.role === 'ADMIN' ||
-          currentUser?.username?.toLowerCase() === 'admin' ||
-          currentUser?.username?.toLowerCase() === 'dafasr'
-        }
+        hasCreatedGroups={groups.some((g) => g.creatorId === currentUser?.id)}
       />
 
       {/* Main Content Area - Handphone First & Mobile Friendly */}

@@ -51,12 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSwitchUser,
   hasCreatedGroups = false,
 }) => {
-  const isCreator =
-    currentUser?.role === 'CREATOR' ||
-    currentUser?.role === 'ADMIN' ||
-    currentUser?.username?.toLowerCase() === 'admin' ||
-    currentUser?.username?.toLowerCase() === 'dafasr' ||
-    hasCreatedGroups;
+  const isCreator = hasCreatedGroups;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 

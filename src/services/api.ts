@@ -228,6 +228,7 @@ export const api = {
   async submitActivity(activityData: {
     groupId: string;
     userId: string;
+    username?: string;
     date: string;
     distanceKm: number;
     startTime: string;

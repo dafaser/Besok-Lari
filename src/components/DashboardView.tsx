@@ -436,126 +436,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         ) : (
           <div className="space-y-2">
-            {recentApprovedActivities.slice(0, 4).map((act) => (
-              <div
-                key={act.id}
-                className="p-3 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between gap-2"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
-                    {act.username[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-stone-900">{act.username}</div>
-                    <div className="text-[10px] text-stone-500 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-stone-400" />
-                      <span>{act.date}</span>
-                      <span>•</span>
-                      <span>{act.durationMinutes} mins</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black font-mono text-emerald-700">
-                    +{act.distanceKm} KM
-                  </span>
-                  {act.photoUrl && (
-                    <button
-                      onClick={() => onViewPhoto(act)}
-                      className="p-1 text-stone-400 hover:text-stone-700 bg-white rounded-lg border border-stone-200"
-                      title="View Photo Proof"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* OTHER CHALLENGES (With Quick Delete for Creator) */}
-      {otherGroups.length > 0 && (
-        <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-black text-stone-900 uppercase tracking-wide">
-              OTHER CHALLENGES
-            </h3>
-            <span className="text-[11px] font-bold text-stone-500">{otherGroups.length} challenges</span>
-          </div>
-
-          <div className="space-y-2.5">
-            {otherGroups.map((grp) => {
-              const isJoined = grp.isMember || grp.creatorId === currentUser.id;
-              const isGrpCreator = grp.creatorId === currentUser.id;
+            {recentApprovedActivities.slice(0, 4).map((act) => {
+              const runnerUsername =
+                (act.username && act.username.toLowerCase() !== 'runner' && act.username.toLowerCase() !== 'pelari' ? act.username : '') ||
+                (activeLeaderboard.find((l) => l.userId === act.userId)?.username) ||
+                (act.userId === activeGroup?.creatorId ? (activeGroup?.creatorUsername || 'Host') : '') ||
+                (act.userId === currentUser.id ? currentUser.username : '') ||
+                'Pelari';
 
               return (
                 <div
-                  key={grp.id}
-                  onClick={() => onViewChallenge(grp.id)}
-                  className="p-3.5 rounded-2xl border border-stone-200 hover:border-emerald-400 bg-stone-50/50 hover:bg-emerald-50/20 active:scale-[0.99] cursor-pointer transition-all flex flex-col justify-between"
+                  key={act.id}
+                  className="p-3 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <div className="flex items-center justify-between mb-1 gap-2">
-                      <span className="font-bold text-xs sm:text-sm text-stone-900 truncate">
-                        {grp.name}
-                      </span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs font-black text-emerald-700 font-mono">
-                          {grp.targetKm} KM
-                        </span>
-                        {/* Delete button if creator */}
-                        {isGrpCreator && onDeleteGroup && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setGroupToDelete(grp);
-                            }}
-                            className="p-1 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors"
-                            title="Delete this challenge"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
+                      {runnerUsername[0]?.toUpperCase() || 'P'}
                     </div>
-                    <p className="text-[11px] text-stone-600 line-clamp-1">{grp.description}</p>
-                    <div className="text-[10px] text-stone-500 font-mono mt-1">
-                      Code: <span className="font-bold text-stone-700">{grp.inviteCode}</span>
+                    <div>
+                      <div className="text-xs font-black text-stone-900">
+                        {runnerUsername}
+                      </div>
+                      <div className="text-[10px] text-stone-500 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-stone-400" />
+                        <span>{act.date}</span>
+                        <span>•</span>
+                        <span>{act.durationMinutes} mins</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between mt-2.5 text-[11px] text-stone-600 border-t border-stone-100 pt-2">
-                    <span className={isJoined ? 'text-emerald-700 font-bold' : 'text-amber-800 font-medium'}>
-                      {isJoined ? '✓ Joined' : 'Not joined yet'}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black font-mono text-emerald-700">
+                      +{act.distanceKm} KM
                     </span>
-                    <div className="flex items-center gap-2">
-                      {!isJoined && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenJoinGroup(grp.inviteCode);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-2xs"
-                        >
-                          + Join
-                        </button>
-                      )}
-                      <span className="text-stone-700 font-bold flex items-center gap-0.5 text-xs">
-                        Details ➔
-                      </span>
-                    </div>
+                    {act.photoUrl && (
+                      <button
+                        onClick={() => onViewPhoto(act)}
+                        className="p-1 text-stone-400 hover:text-stone-700 bg-white rounded-lg border border-stone-200"
+                        title="View Photo Proof"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Confirmation Modal for Deleting Active or Other Challenge */}
       {groupToDelete && (

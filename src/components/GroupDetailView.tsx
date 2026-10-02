@@ -82,13 +82,8 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
     }
   };
 
-  // Edit group form state (if creator or admin/host)
-  const isCreator =
-    currentUser.id === group.creatorId ||
-    currentUser.role === 'CREATOR' ||
-    currentUser.role === 'ADMIN' ||
-    currentUser.username.toLowerCase() === 'admin' ||
-    currentUser.username.toLowerCase() === 'dafasr';
+  // Host of this specific challenge group (user who created it)
+  const isCreator = currentUser.id === group.creatorId;
   const isMember = Boolean(
     group.isMember || members.some((m) => m.userId === currentUser.id) || currentUser.id === group.creatorId
   );
@@ -449,47 +444,68 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
               <span>RECENT ACTIVITIES</span>
             </h3>
 
-            {recentActivities.length === 0 ? (
-              <div className="py-8 text-center text-xs text-stone-500">
-                No approved runs yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentActivities.map((act) => (
-                  <div
-                    key={act.id}
-                    onClick={() => onViewPhoto(act)}
-                    className="p-3.5 rounded-2xl border border-stone-100 bg-stone-50/70 hover:bg-stone-100 flex items-center justify-between cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={act.photoUrl}
-                        alt={act.username}
-                        className="w-12 h-12 rounded-xl object-cover shadow-2xs shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <div className="font-bold text-sm text-stone-900">
-                          {act.username} completed <span className="text-emerald-700 font-black">{act.distanceKm} KM</span> 🏃
+            {(() => {
+              const activeMemberIds = new Set(members.map((m) => m.userId));
+              if (group.creatorId) activeMemberIds.add(group.creatorId);
+              const visibleActivities = recentActivities.filter((a) => activeMemberIds.has(a.userId));
+
+              if (visibleActivities.length === 0) {
+                return (
+                  <div className="py-8 text-center text-xs text-stone-500">
+                    No approved runs yet.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {visibleActivities.map((act) => {
+                    const memberMatch = members.find((m) => m.userId === act.userId);
+                    const displayName =
+                      (memberMatch?.username && memberMatch.username.toLowerCase() !== 'runner' && memberMatch.username.toLowerCase() !== 'pelari' ? memberMatch.username : '') ||
+                      (act.userId === group.creatorId ? (group.creatorUsername || 'Host') : '') ||
+                      (act.username && act.username.toLowerCase() !== 'runner' && act.username.toLowerCase() !== 'pelari' ? act.username : '') ||
+                      (act.userId === currentUser.id ? currentUser.username : '') ||
+                      memberMatch?.username ||
+                      'Pelari';
+
+                    return (
+                      <div
+                        key={act.id}
+                        onClick={() => onViewPhoto(act)}
+                        className="p-3.5 rounded-2xl border border-stone-100 bg-stone-50/70 hover:bg-stone-100 flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={act.photoUrl}
+                            alt={displayName}
+                            className="w-12 h-12 rounded-xl object-cover shadow-2xs shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <div className="font-bold text-sm text-stone-900">
+                              {displayName} completed <span className="text-emerald-700 font-black">{act.distanceKm} KM</span> 🏃
+                            </div>
+                            <div className="text-[11px] text-stone-500 flex items-center gap-2 mt-0.5">
+                              <span>{act.date}</span>
+                              <span>•</span>
+                              <span>{act.startTime} - {act.endTime} ({act.durationMinutes} min)</span>
+                              {act.note && <span className="italic truncate max-w-[150px]">"{act.note}"</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-stone-500 flex items-center gap-2 mt-0.5">
-                          <span>{act.date}</span>
-                          <span>•</span>
-                          <span>{act.startTime} - {act.endTime} ({act.durationMinutes} min)</span>
-                          {act.note && <span className="italic truncate max-w-[150px]">"{act.note}"</span>}
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
+                            🟢 Approved
+                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
-                        🟢 Approved
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

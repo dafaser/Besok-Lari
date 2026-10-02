@@ -40,13 +40,17 @@ export const GroupsListView: React.FC<GroupsListViewProps> = ({
     }
   };
 
-  const filteredGroups = groups.filter((g) => {
+  const availableGroups = groups.filter(
+    (g) => !(g.kickedUserIds || []).includes(currentUser.id)
+  );
+
+  const filteredGroups = availableGroups.filter((g) => {
     if (filterStatus === 'ALL') return true;
     return g.status === filterStatus;
   });
 
-  const activeCount = groups.filter((g) => g.status === 'ACTIVE').length;
-  const closedCount = groups.filter((g) => g.status === 'CLOSED').length;
+  const activeCount = availableGroups.filter((g) => g.status === 'ACTIVE').length;
+  const closedCount = availableGroups.filter((g) => g.status === 'CLOSED').length;
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-24 md:pb-12">
