@@ -41,7 +41,8 @@ async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: ()
       msg.includes('Unauthorized') ||
       msg.includes('tidak ditemukan') ||
       msg.includes('Password') ||
-      msg.includes('Username')
+      msg.includes('Username') ||
+      msg.includes('User not found')
     ) {
       throw err;
     }
@@ -53,23 +54,34 @@ async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: ()
 export const api = {
   getCurrentUser(): User | null {
     try {
-      const stored = localStorage.getItem('funrun_user');
-      return stored ? JSON.parse(stored) : null;
+      if (typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem('funrun_user');
+        return stored ? JSON.parse(stored) : null;
+      }
+      return null;
     } catch {
       return null;
     }
   },
 
   setCurrentUser(user: User | null): void {
-    if (user) {
-      localStorage.setItem('funrun_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('funrun_user');
-    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        if (user) {
+          localStorage.setItem('funrun_user', JSON.stringify(user));
+        } else {
+          localStorage.removeItem('funrun_user');
+        }
+      }
+    } catch {}
   },
 
   logout(): void {
-    localStorage.removeItem('funrun_user');
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('funrun_user');
+      }
+    } catch {}
   },
 
   // Cross-device sync: Uploads any locally created challenges/activities to shared Firebase Firestore
@@ -86,6 +98,9 @@ export const api = {
       async () => {
         const user = await firestoreService.login(username, password);
         this.setCurrentUser(user);
+        try {
+          localStore.upsertUser({ ...user, password });
+        } catch {}
         // Sync any pending local data
         this.syncLocalData();
         return user;
@@ -103,6 +118,9 @@ export const api = {
       async () => {
         const user = await firestoreService.register(username, password, role);
         this.setCurrentUser(user);
+        try {
+          localStore.upsertUser({ ...user, password });
+        } catch {}
         // Sync any pending local data
         this.syncLocalData();
         return user;
@@ -130,6 +148,9 @@ export const api = {
       async () => {
         const updated = await firestoreService.updateProfile(userId, data);
         this.setCurrentUser(updated);
+        try {
+          localStore.upsertUser(updated);
+        } catch {}
         return updated;
       },
       () => {

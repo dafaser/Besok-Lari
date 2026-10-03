@@ -38,21 +38,27 @@ function getInitialDbState(): LocalDatabaseState {
 
 function getDb(): LocalDatabaseState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        return JSON.parse(raw);
+      }
     }
   } catch (e) {
     console.error('Failed reading local storage db', e);
   }
   const initial = getInitialDbState();
-  saveDb(initial);
+  if (typeof localStorage !== 'undefined') {
+    saveDb(initial);
+  }
   return initial;
 }
 
 function saveDb(state: LocalDatabaseState) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
   } catch (e) {
     console.error('Failed writing local storage db', e);
   }
@@ -247,25 +253,66 @@ export const localStore = {
     return db.users.map(({ password: _, ...u }) => u);
   },
 
+  upsertUser(user: User & { password?: string }): void {
+    const db = getDb();
+    const idx = db.users.findIndex(
+      (u) => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase()
+    );
+    if (idx >= 0) {
+      db.users[idx] = { ...db.users[idx], ...user };
+    } else {
+      db.users.push(user);
+    }
+    saveDb(db);
+  },
+
   updateProfile(userId: string, data: { username?: string; password?: string; avatar?: string | null }): User {
     const db = getDb();
-    const user = db.users.find((u) => u.id === userId);
+    let user = db.users.find((u) => u.id === userId);
+
+    if (!user) {
+      // Fallback 1: check by username if current user was stored in localStorage
+      const currentRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('funrun_user') : null;
+      const currentUser = currentRaw ? JSON.parse(currentRaw) : null;
+      if (currentUser && (currentUser.id === userId || currentUser.username)) {
+        user = db.users.find((u) => u.username.toLowerCase() === currentUser.username.toLowerCase());
+        if (!user) {
+          user = {
+            id: currentUser.id || userId,
+            username: currentUser.username,
+            name: currentUser.name || currentUser.username,
+            role: currentUser.role || 'USER',
+            avatar: currentUser.avatar,
+            createdAt: currentUser.createdAt || new Date().toISOString(),
+          };
+          db.users.push(user);
+        }
+      }
+    }
+
+    if (!user) {
+      // Fallback 2: check if any user has matching username if data.username is provided
+      if (data.username) {
+        user = db.users.find((u) => u.username.toLowerCase() === data.username!.toLowerCase());
+      }
+    }
+
     if (!user) throw new Error('User not found.');
 
     if (data.username && data.username.trim() !== user.username) {
       const trimmed = data.username.trim();
       const exists = db.users.some(
-        (u) => u.id !== userId && u.username.toLowerCase() === trimmed.toLowerCase()
+        (u) => u.id !== user!.id && u.username.toLowerCase() === trimmed.toLowerCase()
       );
       if (exists) throw new Error('Username is already taken by another runner.');
       user.username = trimmed;
       user.name = trimmed;
 
       db.activities.forEach((a) => {
-        if (a.userId === userId) a.username = trimmed;
+        if (a.userId === userId || a.userId === user!.id) a.username = trimmed;
       });
       db.groups.forEach((g) => {
-        if (g.creatorId === userId) g.creatorUsername = trimmed;
+        if (g.creatorId === userId || g.creatorId === user!.id) g.creatorUsername = trimmed;
       });
     }
 

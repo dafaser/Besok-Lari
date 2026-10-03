@@ -178,11 +178,36 @@ export const firestoreService = {
   ): Promise<User> {
     const ref = doc(db, 'users', userId);
     const snap = await getDoc(ref);
-    if (!snap.exists()) {
+    let targetRef = ref;
+    let current: (User & { password?: string }) | null = null;
+
+    if (snap.exists()) {
+      current = snap.data() as User & { password?: string };
+    } else {
+      // Robust lookup: search users collection by id property or username
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.forEach((d) => {
+        const u = d.data() as User & { password?: string };
+        if (d.id === userId || u.id === userId) {
+          targetRef = doc(db, 'users', d.id);
+          current = u;
+        }
+      });
+      if (!current && data.username) {
+        usersSnap.forEach((d) => {
+          const u = d.data() as User & { password?: string };
+          if (u.username && u.username.toLowerCase() === data.username!.toLowerCase()) {
+            targetRef = doc(db, 'users', d.id);
+            current = u;
+          }
+        });
+      }
+    }
+
+    if (!current) {
       throw new Error('User not found');
     }
 
-    const current = snap.data() as User & { password?: string };
     const updated: User & { password?: string } = {
       ...current,
       username: data.username?.trim() || current.username,
@@ -191,9 +216,28 @@ export const firestoreService = {
       password: data.password || current.password,
     };
 
-    await setDoc(ref, updated);
+    await setDoc(targetRef, updated, { merge: true });
+
+    // Propagate username updates to memberships and activities if username changed
+    if (data.username && data.username.trim() !== current.username) {
+      const newUsername = data.username.trim();
+      try {
+        const memSnap = await getDocs(collection(db, 'memberships'));
+        const memUpdates: Promise<any>[] = [];
+        memSnap.forEach((d) => {
+          const m = d.data();
+          if (m.userId === userId || m.userId === current!.id) {
+            memUpdates.push(setDoc(doc(db, 'memberships', d.id), { username: newUsername }, { merge: true }));
+          }
+        });
+        await Promise.all(memUpdates);
+      } catch (e) {
+        console.warn('Could not propagate username to memberships:', e);
+      }
+    }
+
     const user: User = {
-      id: updated.id,
+      id: updated.id || userId,
       username: updated.username,
       name: updated.name,
       avatar: updated.avatar,
@@ -999,15 +1043,16 @@ export const firestoreService = {
 
         for (const a of local.activities) {
           if (a.id && a.groupId && a.userId) {
+            // Never re-upload rejected or invalidated runs
+            if (a.status === 'REJECTED') continue;
+
             const existsById = existingMap.has(a.id);
             const existsByContent = Array.from(existingMap.values()).some(
               (ea) =>
                 ea.userId === a.userId &&
                 ea.groupId === a.groupId &&
                 ea.date === a.date &&
-                ea.startTime === a.startTime &&
-                ea.endTime === a.endTime &&
-                Math.abs(Number(ea.distanceKm) - Number(a.distanceKm)) < 0.01
+                (ea.startTime === a.startTime || Math.abs(Number(ea.distanceKm) - Number(a.distanceKm)) < 0.05)
             );
 
             if (!existsById && !existsByContent) {

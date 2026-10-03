@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Camera, Trash2, Lock, User as UserIcon, Eye, EyeOff, Check, Upload, AlertCircle } from 'lucide-react';
+import { X, Camera, Trash2, Lock, User as UserIcon, Eye, EyeOff, Check, Upload, AlertCircle, Loader2 } from 'lucide-react';
 import { User } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(currentUser.avatar || null);
   const [isPhotoChanged, setIsPhotoChanged] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -37,13 +39,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setShowPassword(false);
       setAvatar(currentUser.avatar || null);
       setIsPhotoChanged(false);
+      setIsCompressing(false);
       setErrorMsg(null);
     }
   }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -52,20 +55,24 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       return;
     }
 
-    if (file.size > 8 * 1024 * 1024) {
-      setErrorMsg('Ukuran foto maksimal 8 MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMsg('Ukuran foto maksimal 15 MB.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatar(reader.result);
-        setIsPhotoChanged(true);
-        setErrorMsg(null);
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
+    setErrorMsg(null);
+    try {
+      // Compress avatar to 400x400 max, ~25-45KB crisp image
+      const compressedDataUrl = await compressImage(file, 400, 0.82);
+      setAvatar(compressedDataUrl);
+      setIsPhotoChanged(true);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Gagal memproses foto profil.');
+    } finally {
+      setIsCompressing(false);
+      e.target.value = '';
+    }
   };
 
   const handleDeletePhoto = () => {
@@ -193,14 +200,28 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     id="profile-photo-upload"
                     accept="image/jpeg,image/png,image/webp,image/jpg"
                     onChange={handleFileUpload}
+                    disabled={isCompressing || isSubmitting}
                     className="sr-only"
                   />
                   <label
-                    htmlFor="profile-photo-upload"
-                    className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-stone-300 hover:border-emerald-500 hover:text-emerald-700 text-stone-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer w-full sm:w-auto"
+                    htmlFor={isCompressing || isSubmitting ? undefined : 'profile-photo-upload'}
+                    className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 text-xs font-bold shadow-2xs transition-colors w-full sm:w-auto ${
+                      isCompressing || isSubmitting
+                        ? 'opacity-60 cursor-not-allowed'
+                        : 'hover:border-emerald-500 hover:text-emerald-700 cursor-pointer'
+                    }`}
                   >
-                    <Camera className="w-4 h-4 text-emerald-600" />
-                    <span>{avatar ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                    {isCompressing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                        <span>Mengompres Foto...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 text-emerald-600" />
+                        <span>{avatar ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                      </>
+                    )}
                   </label>
                 </div>
 
@@ -208,7 +229,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <button
                     type="button"
                     onClick={handleDeletePhoto}
-                    className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors cursor-pointer w-full sm:w-auto"
+                    disabled={isCompressing || isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 text-rose-700 text-xs font-bold transition-colors cursor-pointer w-full sm:w-auto"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Hapus Foto</span>
@@ -218,7 +240,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </div>
 
             <p className="text-[11px] text-stone-400 mt-2.5 text-center sm:text-left">
-              Format: JPG, PNG, WEBP. Maks 8 MB.
+              Format: JPG, PNG, WEBP. Otomatis dikompresi agar jernih & ringan.
             </p>
           </div>
 
@@ -287,11 +309,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCompressing}
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold text-xs shadow-md shadow-emerald-700/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               {isSubmitting ? (
                 <span>Menyimpan...</span>
+              ) : isCompressing ? (
+                <span>Mengompres Foto...</span>
               ) : (
                 <>
                   <Check className="w-4 h-4" />
