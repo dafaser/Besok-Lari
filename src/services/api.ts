@@ -9,6 +9,7 @@ export interface GroupDetailResponse {
   members: {
     userId: string;
     username: string;
+    avatar?: string;
     joinedAt: string;
     totalApprovedKm: number;
     progressPercent: number;
@@ -41,8 +42,7 @@ async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: ()
       msg.includes('Unauthorized') ||
       msg.includes('tidak ditemukan') ||
       msg.includes('Password') ||
-      msg.includes('Username') ||
-      msg.includes('User not found')
+      msg.includes('Username')
     ) {
       throw err;
     }
@@ -142,7 +142,7 @@ export const api = {
 
   async updateProfile(
     userId: string,
-    data: { username?: string; password?: string; avatar?: string | null }
+    data: { username?: string; password?: string; avatar?: string | null; currentUsername?: string }
   ): Promise<User> {
     return tryFirestore(
       async () => {

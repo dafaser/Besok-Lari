@@ -31,6 +31,7 @@ interface GroupDetailViewProps {
   members: {
     userId: string;
     username: string;
+    avatar?: string;
     joinedAt: string;
     totalApprovedKm: number;
     progressPercent: number;
@@ -547,9 +548,17 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                       <>
                         <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                           <div className="relative mb-1">
-                            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-slate-300 via-slate-100 to-white text-slate-800 font-black text-sm sm:text-base flex items-center justify-center border-2 border-slate-300 shadow-md">
-                              {leaderboard[1].username[0]?.toUpperCase()}
-                            </div>
+                            {leaderboard[1].avatar ? (
+                              <img
+                                src={leaderboard[1].avatar}
+                                alt={leaderboard[1].username}
+                                className="w-11 h-11 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-slate-300 shadow-md"
+                              />
+                            ) : (
+                              <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-slate-300 via-slate-100 to-white text-slate-800 font-black text-sm sm:text-base flex items-center justify-center border-2 border-slate-300 shadow-md">
+                                {leaderboard[1].username[0]?.toUpperCase()}
+                              </div>
+                            )}
                             <span className="absolute -bottom-1 -right-1 text-sm sm:text-base">
                               🥈
                             </span>
@@ -593,9 +602,17 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                         </div>
                         <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                           <div className="relative mb-1">
-                            <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-yellow-100 text-stone-900 font-black text-base sm:text-xl flex items-center justify-center border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30">
-                              {leaderboard[0].username[0]?.toUpperCase()}
-                            </div>
+                            {leaderboard[0].avatar ? (
+                              <img
+                                src={leaderboard[0].avatar}
+                                alt={leaderboard[0].username}
+                                className="w-14 h-14 sm:w-18 sm:h-18 rounded-full object-cover border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-yellow-100 text-stone-900 font-black text-base sm:text-xl flex items-center justify-center border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30">
+                                {leaderboard[0].username[0]?.toUpperCase()}
+                              </div>
+                            )}
                             <span className="absolute -bottom-1 -right-1 text-base sm:text-xl">
                               🥇
                             </span>
@@ -632,9 +649,17 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                       <>
                         <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                           <div className="relative mb-1">
-                            <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-200 text-white font-black text-xs sm:text-sm flex items-center justify-center border-2 border-amber-600 shadow-md">
-                              {leaderboard[2].username[0]?.toUpperCase()}
-                            </div>
+                            {leaderboard[2].avatar ? (
+                              <img
+                                src={leaderboard[2].avatar}
+                                alt={leaderboard[2].username}
+                                className="w-10 h-10 sm:w-13 sm:h-13 rounded-full object-cover border-2 border-amber-600 shadow-md"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-200 text-white font-black text-xs sm:text-sm flex items-center justify-center border-2 border-amber-600 shadow-md">
+                                {leaderboard[2].username[0]?.toUpperCase()}
+                              </div>
+                            )}
                             <span className="absolute -bottom-1 -right-1 text-sm sm:text-base">
                               🥉
                             </span>
@@ -713,9 +738,17 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                             <div className="w-7 h-7 rounded-xl bg-stone-100 text-stone-700 font-mono font-black text-xs flex items-center justify-center shrink-0">
                               #{entry.rank}
                             </div>
-                            <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center shrink-0">
-                              {entry.username[0]?.toUpperCase()}
-                            </div>
+                            {entry.avatar ? (
+                              <img
+                                src={entry.avatar}
+                                alt={entry.username}
+                                className="w-8 h-8 rounded-full object-cover border border-stone-300 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center shrink-0">
+                                {entry.username[0]?.toUpperCase()}
+                              </div>
+                            )}
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-xs sm:text-sm text-stone-900">
@@ -780,9 +813,17 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                   className="py-3 px-3 flex items-center justify-between hover:bg-stone-50 rounded-xl"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center font-bold text-sm">
-                      {m.username[0]?.toUpperCase()}
-                    </div>
+                    {m.avatar ? (
+                      <img
+                        src={m.avatar}
+                        alt={m.username}
+                        className="w-10 h-10 rounded-full object-cover border border-emerald-500/40 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center font-bold text-sm shrink-0">
+                        {m.username[0]?.toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-stone-900">{m.username}</span>

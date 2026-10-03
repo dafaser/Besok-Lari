@@ -116,6 +116,7 @@ function calculateLeaderboard(
     return {
       userId,
       username,
+      avatar: user?.avatar,
       totalApprovedKm,
       targetKm,
       progressPercent,
@@ -290,14 +291,21 @@ export const localStore = {
       }
     }
 
-    if (!user) {
-      // Fallback 2: check if any user has matching username if data.username is provided
-      if (data.username) {
-        user = db.users.find((u) => u.username.toLowerCase() === data.username!.toLowerCase());
-      }
+    if (!user && (data as any).currentUsername) {
+      user = db.users.find((u) => u.username.toLowerCase() === (data as any).currentUsername.toLowerCase());
     }
 
-    if (!user) throw new Error('User not found.');
+    if (!user) {
+      const fallbackName = (data.username || (data as any).currentUsername || 'Runner').trim();
+      user = {
+        id: userId,
+        username: fallbackName,
+        name: fallbackName,
+        role: 'USER',
+        createdAt: new Date().toISOString(),
+      };
+      db.users.push(user);
+    }
 
     if (data.username && data.username.trim() !== user.username) {
       const trimmed = data.username.trim();
@@ -390,6 +398,7 @@ export const localStore = {
       return {
         userId: m.userId,
         username: u ? u.username : 'Unknown',
+        avatar: u?.avatar,
         joinedAt: m.joinedAt,
         totalApprovedKm: totalKm,
         progressPercent: Math.min(100, Math.round((totalKm / group.targetKm) * 100)),

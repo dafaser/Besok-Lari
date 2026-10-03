@@ -174,7 +174,7 @@ export const firestoreService = {
 
   async updateProfile(
     userId: string,
-    data: { username?: string; password?: string; avatar?: string | null }
+    data: { username?: string; password?: string; avatar?: string | null; currentUsername?: string }
   ): Promise<User> {
     const ref = doc(db, 'users', userId);
     const snap = await getDoc(ref);
@@ -193,10 +193,11 @@ export const firestoreService = {
           current = u;
         }
       });
-      if (!current && data.username) {
+      const searchName = data.currentUsername || data.username;
+      if (!current && searchName) {
         usersSnap.forEach((d) => {
           const u = d.data() as User & { password?: string };
-          if (u.username && u.username.toLowerCase() === data.username!.toLowerCase()) {
+          if (u.username && u.username.toLowerCase() === searchName.toLowerCase()) {
             targetRef = doc(db, 'users', d.id);
             current = u;
           }
@@ -205,18 +206,40 @@ export const firestoreService = {
     }
 
     if (!current) {
-      throw new Error('User not found');
+      // Create user doc if not found so profile update is never blocked
+      const fallbackName = (data.username || data.currentUsername || 'Runner').trim();
+      current = {
+        id: userId,
+        username: fallbackName,
+        name: fallbackName,
+        role: 'USER',
+        createdAt: new Date().toISOString(),
+      };
+      targetRef = doc(db, 'users', userId);
     }
 
-    const updated: User & { password?: string } = {
-      ...current,
-      username: data.username?.trim() || current.username,
-      name: data.username?.trim() || current.name || current.username,
-      avatar: data.avatar !== undefined ? (data.avatar || undefined) : current.avatar,
-      password: data.password || current.password,
+    // Clean payload: Firestore setDoc throws if ANY field is undefined!
+    const cleanDocData: Record<string, any> = {
+      id: current.id || targetRef.id || userId,
+      username: data.username?.trim() || current.username || 'Runner',
+      name: data.username?.trim() || current.name || current.username || 'Runner',
+      role: current.role || 'USER',
+      createdAt: current.createdAt || new Date().toISOString(),
     };
 
-    await setDoc(targetRef, updated, { merge: true });
+    if (data.avatar !== undefined) {
+      cleanDocData.avatar = data.avatar || null;
+    } else if (current.avatar !== undefined) {
+      cleanDocData.avatar = current.avatar;
+    }
+
+    if (data.password && data.password.trim()) {
+      cleanDocData.password = data.password.trim();
+    } else if (current.password) {
+      cleanDocData.password = current.password;
+    }
+
+    await setDoc(targetRef, cleanDocData, { merge: true });
 
     // Propagate username updates to memberships and activities if username changed
     if (data.username && data.username.trim() !== current.username) {
@@ -237,12 +260,12 @@ export const firestoreService = {
     }
 
     const user: User = {
-      id: updated.id || userId,
-      username: updated.username,
-      name: updated.name,
-      avatar: updated.avatar,
-      role: updated.role,
-      createdAt: updated.createdAt,
+      id: cleanDocData.id,
+      username: cleanDocData.username,
+      name: cleanDocData.name,
+      avatar: cleanDocData.avatar || undefined,
+      role: cleanDocData.role,
+      createdAt: cleanDocData.createdAt,
     };
     return user;
   },
@@ -392,6 +415,7 @@ export const firestoreService = {
       return {
         userId: m.userId,
         username: m.username || usersMap[m.userId]?.username || 'Pelari',
+        avatar: usersMap[m.userId]?.avatar || undefined,
         totalApprovedKm,
         targetKm,
         progressPercent,
@@ -443,6 +467,7 @@ export const firestoreService = {
       return {
         userId: l.userId,
         username: l.username,
+        avatar: l.avatar,
         joinedAt: mem?.joinedAt || group.createdAt,
         totalApprovedKm: l.totalApprovedKm,
         progressPercent: l.progressPercent,
