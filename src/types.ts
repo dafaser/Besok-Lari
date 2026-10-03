@@ -91,7 +91,6 @@ export interface UserStats {
 export interface LeaderboardEntry {
   userId: string;
   username: string;
-  avatar?: string;
   totalApprovedKm: number;
   targetKm: number;
   progressPercent: number;

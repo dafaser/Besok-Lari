@@ -83,17 +83,6 @@ function FunRunApp() {
         setAllUsers(updatedUsers);
       }
 
-      // Keep currentUser state in sync with fresh user record if avatar or username changed
-      if (currentUser) {
-        const freshUser = users.find(
-          (u) => u.id === currentUser.id || u.username.toLowerCase() === currentUser.username.toLowerCase()
-        );
-        if (freshUser && (freshUser.avatar !== currentUser.avatar || freshUser.username !== currentUser.username)) {
-          setCurrentUser(freshUser);
-          api.setCurrentUser(freshUser);
-        }
-      }
-
       // Fetch groups with user context so isMember is computed
       const allGroups = await api.getGroups(currentUser?.id);
       setGroups(allGroups);
@@ -213,10 +202,7 @@ function FunRunApp() {
     avatar?: string | null;
   }) => {
     if (!currentUser) return;
-    const updatedUser = await api.updateProfile(currentUser.id, {
-      ...data,
-      currentUsername: currentUser.username,
-    });
+    const updatedUser = await api.updateProfile(currentUser.id, data);
     setCurrentUser(updatedUser);
     await refreshData();
   };
