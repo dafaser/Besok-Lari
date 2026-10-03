@@ -36,12 +36,22 @@ export interface GroupMember {
 
 export type ActivityStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+export interface ActivityComment {
+  id: string;
+  userId: string;
+  username: string;
+  userAvatar?: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface Activity {
   id: string;
   groupId: string;
   groupName?: string;
   userId: string;
   username: string;
+  userAvatar?: string;
   date: string; // YYYY-MM-DD
   distanceKm: number;
   startTime: string; // HH:mm
@@ -56,6 +66,8 @@ export interface Activity {
   approvedAt?: string | null;
   isSuspicious?: boolean;
   suspiciousReason?: string | null;
+  likes?: string[]; // Array of user IDs who liked the post
+  comments?: ActivityComment[];
   createdAt: string;
 }
 

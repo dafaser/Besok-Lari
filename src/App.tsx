@@ -13,7 +13,7 @@ import { Navbar, TabType } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { GroupDetailView } from './components/GroupDetailView';
 import { MyRunsView } from './components/MyRunsView';
-import { LeaderboardView } from './components/LeaderboardView';
+import { FeedView } from './components/FeedView';
 import { ProfileView } from './components/ProfileView';
 import { GroupsListView } from './components/GroupsListView';
 import { PendingApprovalsView } from './components/PendingApprovalsView';
@@ -81,17 +81,6 @@ function FunRunApp() {
         await api.syncLocalData();
         const updatedUsers = await api.getUsers();
         setAllUsers(updatedUsers);
-      }
-
-      // Keep currentUser state in sync with fresh user record if avatar or username changed
-      if (currentUser) {
-        const freshUser = users.find(
-          (u) => u.id === currentUser.id || u.username.toLowerCase() === currentUser.username.toLowerCase()
-        );
-        if (freshUser && (freshUser.avatar !== currentUser.avatar || freshUser.username !== currentUser.username)) {
-          setCurrentUser(freshUser);
-          api.setCurrentUser(freshUser);
-        }
       }
 
       // Fetch groups with user context so isMember is computed
@@ -200,13 +189,6 @@ function FunRunApp() {
     return user;
   };
 
-  const handleResetPassword = async (username: string, newPassword: string) => {
-    const user = await api.resetPassword(username, newPassword);
-    setCurrentUser(user);
-    setSelectedGroupId('');
-    return user;
-  };
-
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
@@ -220,10 +202,7 @@ function FunRunApp() {
     avatar?: string | null;
   }) => {
     if (!currentUser) return;
-    const updatedUser = await api.updateProfile(currentUser.id, {
-      ...data,
-      currentUsername: currentUser.username,
-    });
+    const updatedUser = await api.updateProfile(currentUser.id, data);
     setCurrentUser(updatedUser);
     await refreshData();
   };
@@ -359,7 +338,6 @@ function FunRunApp() {
         <AuthView
           onLogin={handleLogin}
           onRegister={handleRegister}
-          onResetPassword={handleResetPassword}
           onShowToast={showToast}
         />
       </div>
@@ -466,14 +444,16 @@ function FunRunApp() {
           />
         )}
 
-        {/* Tab 5: Leaderboard View (Rule 11) */}
-        {currentTab === 'leaderboard' && (
-          <LeaderboardView
-            groups={groups}
-            selectedGroupId={selectedGroupId}
-            onSelectGroup={(id) => setSelectedGroupId(id)}
-            leaderboard={activeLeaderboard}
+        {/* Tab 5: FYP / Feed View (Social Media Instagram-style recent activities) */}
+        {currentTab === 'fyp' && (
+          <FeedView
             currentUser={currentUser}
+            onOpenAddRun={() => setIsAddRunOpen(true)}
+            onViewPhoto={(act) => setPhotoModalActivity(act)}
+            onViewChallenge={(groupId) => {
+              setSelectedGroupId(groupId);
+              setCurrentTab('manage-groups');
+            }}
           />
         )}
 

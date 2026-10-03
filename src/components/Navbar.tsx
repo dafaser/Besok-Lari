@@ -4,6 +4,7 @@ import {
   Footprints,
   Users,
   Trophy,
+  Compass,
   User as UserIcon,
   CheckSquare,
   Plus,
@@ -21,7 +22,7 @@ export type TabType =
   | 'dashboard'
   | 'my-runs'
   | 'groups'
-  | 'leaderboard'
+  | 'fyp'
   | 'profile'
   | 'manage-groups'
   | 'pending-approvals';
@@ -110,15 +111,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
-              onClick={() => onSelectTab('leaderboard')}
+              onClick={() => onSelectTab('fyp')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                currentTab === 'leaderboard'
+                currentTab === 'fyp'
                   ? 'bg-emerald-50 text-emerald-700 font-extrabold'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <Trophy className="w-4 h-4" />
-              <span>Leaderboard</span>
+              <Compass className="w-4 h-4" />
+              <span>FYP</span>
             </button>
 
             <button
@@ -314,19 +315,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </div>
 
-        {/* 4. Leaderboard */}
+        {/* 4. FYP / Feed (Instagram-style recent activities) */}
         <button
-          onClick={() => onSelectTab('leaderboard')}
+          onClick={() => onSelectTab('fyp')}
           className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer active:scale-90 ${
-            currentTab === 'leaderboard'
+            currentTab === 'fyp'
               ? 'text-emerald-600 font-black'
               : 'text-stone-600 hover:text-stone-700'
           }`}
         >
-          <div className={`p-1 rounded-xl transition-colors ${currentTab === 'leaderboard' ? 'bg-emerald-50' : ''}`}>
-            <Trophy className="w-5 h-5 stroke-[2.2]" />
+          <div className={`p-1 rounded-xl transition-colors ${currentTab === 'fyp' ? 'bg-emerald-50' : ''}`}>
+            <Compass className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <span className="mt-0.5 tracking-tight">Leaderboard</span>
+          <span className="mt-0.5 tracking-tight">FYP</span>
         </button>
 
         {/* 5. My Runs */}

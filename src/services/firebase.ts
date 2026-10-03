@@ -224,15 +224,48 @@ export const firestoreService = {
       throw new Error('User not found');
     }
 
-    const updated: User & { password?: string } = {
+    const updated: any = {
       ...current,
       username: data.username?.trim() || current.username,
       name: data.username?.trim() || current.name || current.username,
-      avatar: data.avatar !== undefined ? (data.avatar || undefined) : current.avatar,
       password: data.password || current.password,
     };
+    if (data.avatar !== undefined) {
+      if (data.avatar) {
+        updated.avatar = data.avatar;
+      } else {
+        delete updated.avatar;
+      }
+    }
 
-    await setDoc(targetRef, updated, { merge: true });
+    await setDoc(targetRef, updated);
+
+    // Propagate avatar updates to activities in Firestore
+    if (data.avatar !== undefined) {
+      try {
+        const actSnap = await getDocs(collection(db, 'activities'));
+        const actUpdates: Promise<any>[] = [];
+        actSnap.forEach((d) => {
+          const a = d.data();
+          if (
+            a.userId === userId ||
+            a.userId === current!.id ||
+            (current!.username && a.username?.toLowerCase() === current!.username.toLowerCase())
+          ) {
+            actUpdates.push(
+              setDoc(
+                doc(db, 'activities', d.id),
+                { userAvatar: data.avatar || '' },
+                { merge: true }
+              )
+            );
+          }
+        });
+        await Promise.all(actUpdates);
+      } catch (e) {
+        console.warn('Could not propagate avatar to activities:', e);
+      }
+    }
 
     // Propagate username updates to memberships and activities if username changed
     if (data.username && data.username.trim() !== current.username) {
@@ -378,6 +411,17 @@ export const firestoreService = {
       }
     });
 
+    // Build user avatar lookup
+    const userAvatars = new Map<string, string>();
+    usersSnap.forEach((d) => {
+      const u = d.data() as User;
+      if (u.avatar) {
+        userAvatars.set(d.id, u.avatar);
+        if (u.id) userAvatars.set(u.id, u.avatar);
+        if (u.username) userAvatars.set(u.username.toLowerCase(), u.avatar);
+      }
+    });
+
     const isMember = userId
       ? memberships.some((m) => m.userId === userId) || groupData.creatorId === userId
       : false;
@@ -405,9 +449,12 @@ export const firestoreService = {
           ? [...userApprovedActivities].sort((a, b) => b.date.localeCompare(a.date))[0].date
           : undefined;
 
+      const avatar = userAvatars.get(m.userId) || (m.username ? userAvatars.get(m.username.toLowerCase()) : undefined) || usersMap[m.userId]?.avatar;
+
       return {
         userId: m.userId,
         username: m.username || usersMap[m.userId]?.username || 'Pelari',
+        avatar,
         totalApprovedKm,
         targetKm,
         progressPercent,
@@ -459,6 +506,7 @@ export const firestoreService = {
       return {
         userId: l.userId,
         username: l.username,
+        avatar: l.avatar,
         joinedAt: mem?.joinedAt || group.createdAt,
         totalApprovedKm: l.totalApprovedKm,
         progressPercent: l.progressPercent,
@@ -467,6 +515,10 @@ export const firestoreService = {
     });
 
     const recentApprovedActivities = approvedActivities
+      .map((a) => ({
+        ...a,
+        userAvatar: a.userAvatar || userAvatars.get(a.userId) || (a.username ? userAvatars.get(a.username.toLowerCase()) : undefined),
+      }))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10);
 
@@ -724,14 +776,36 @@ export const firestoreService = {
     status?: string;
     creatorId?: string;
   }): Promise<Activity[]> {
-    const [actSnap, groupsSnap] = await Promise.all([
+    const [actSnap, groupsSnap, usersSnap] = await Promise.all([
       getDocs(collection(db, 'activities')),
       getDocs(collection(db, 'groups')),
+      getDocs(collection(db, 'users')),
     ]);
+
+    const groupsMap = new Map<string, string>();
+    groupsSnap.forEach((d) => {
+      const g = d.data() as Group;
+      groupsMap.set(g.id, g.name);
+    });
+
+    const userAvatars = new Map<string, string>();
+    usersSnap.forEach((d) => {
+      const u = d.data() as User;
+      if (u.avatar) userAvatars.set(u.id, u.avatar);
+      if (u.avatar && u.username) userAvatars.set(u.username.toLowerCase(), u.avatar);
+    });
 
     let result: Activity[] = [];
     actSnap.forEach((d) => {
-      result.push(d.data() as Activity);
+      const a = d.data() as Activity;
+      const avatar = userAvatars.get(a.userId) || (a.username ? userAvatars.get(a.username.toLowerCase()) : undefined);
+      result.push({
+        ...a,
+        groupName: a.groupName || groupsMap.get(a.groupId) || 'Tantangan Lari',
+        userAvatar: a.userAvatar || avatar,
+        likes: Array.isArray(a.likes) ? a.likes : [],
+        comments: Array.isArray(a.comments) ? a.comments : [],
+      });
     });
 
     if (params?.groupId) {
@@ -755,6 +829,48 @@ export const firestoreService = {
     }
 
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async toggleLikeActivity(activityId: string, userId: string): Promise<Activity> {
+    const ref = doc(db, 'activities', activityId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Aktivitas tidak ditemukan');
+    const act = snap.data() as Activity;
+    const currentLikes = Array.isArray(act.likes) ? [...act.likes] : [];
+    const idx = currentLikes.indexOf(userId);
+    if (idx >= 0) {
+      currentLikes.splice(idx, 1);
+    } else {
+      currentLikes.push(userId);
+    }
+    const updated: Activity = { ...act, likes: currentLikes };
+    await setDoc(ref, { likes: currentLikes }, { merge: true });
+    return updated;
+  },
+
+  async addComment(
+    activityId: string,
+    commentData: { userId: string; username: string; userAvatar?: string; text: string }
+  ): Promise<Activity> {
+    const ref = doc(db, 'activities', activityId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Aktivitas tidak ditemukan');
+    const act = snap.data() as Activity;
+    const currentComments = Array.isArray(act.comments) ? [...act.comments] : [];
+    const newComment: any = {
+      id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: commentData.userId,
+      username: commentData.username,
+      text: commentData.text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    if (commentData.userAvatar) {
+      newComment.userAvatar = commentData.userAvatar;
+    }
+    currentComments.push(newComment);
+    const updated: Activity = { ...act, comments: currentComments };
+    await setDoc(ref, { comments: currentComments }, { merge: true });
+    return updated;
   },
 
   async submitActivity(activityData: {

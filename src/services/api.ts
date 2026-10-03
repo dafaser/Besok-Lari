@@ -9,7 +9,6 @@ export interface GroupDetailResponse {
   members: {
     userId: string;
     username: string;
-    avatar?: string;
     joinedAt: string;
     totalApprovedKm: number;
     progressPercent: number;
@@ -42,7 +41,8 @@ async function tryFirestore<T>(firestoreCall: () => Promise<T>, fallbackCall: ()
       msg.includes('Unauthorized') ||
       msg.includes('tidak ditemukan') ||
       msg.includes('Password') ||
-      msg.includes('Username')
+      msg.includes('Username') ||
+      msg.includes('User not found')
     ) {
       throw err;
     }
@@ -113,25 +113,6 @@ export const api = {
     );
   },
 
-  async resetPassword(username: string, newPassword: string): Promise<User> {
-    return tryFirestore(
-      async () => {
-        const user = await firestoreService.resetPassword(username, newPassword);
-        this.setCurrentUser(user);
-        try {
-          localStore.upsertUser({ ...user, password: newPassword });
-        } catch {}
-        this.syncLocalData();
-        return user;
-      },
-      () => {
-        const user = localStore.resetPassword(username, newPassword);
-        this.setCurrentUser(user);
-        return user;
-      }
-    );
-  },
-
   async register(username: string, password?: string, role?: 'USER' | 'CREATOR'): Promise<User> {
     return tryFirestore(
       async () => {
@@ -161,7 +142,7 @@ export const api = {
 
   async updateProfile(
     userId: string,
-    data: { username?: string; password?: string; avatar?: string | null; currentUsername?: string }
+    data: { username?: string; password?: string; avatar?: string | null }
   ): Promise<User> {
     return tryFirestore(
       async () => {
@@ -336,6 +317,35 @@ export const api = {
         return res;
       },
       () => localStore.rejectActivity(activityId, creatorId, rejectionReason)
+    );
+  },
+
+  async toggleLikeActivity(activityId: string, userId: string): Promise<Activity> {
+    return tryFirestore(
+      async () => {
+        const updated = await firestoreService.toggleLikeActivity(activityId, userId);
+        try {
+          localStore.upsertActivity(updated);
+        } catch {}
+        return updated;
+      },
+      () => localStore.toggleLikeActivity(activityId, userId)
+    );
+  },
+
+  async addComment(
+    activityId: string,
+    commentData: { userId: string; username: string; userAvatar?: string; text: string }
+  ): Promise<Activity> {
+    return tryFirestore(
+      async () => {
+        const updated = await firestoreService.addComment(activityId, commentData);
+        try {
+          localStore.upsertActivity(updated);
+        } catch {}
+        return updated;
+      },
+      () => localStore.addComment(activityId, commentData)
     );
   },
 

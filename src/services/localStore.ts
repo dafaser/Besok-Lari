@@ -116,6 +116,7 @@ function calculateLeaderboard(
     return {
       userId,
       username,
+      avatar: user?.avatar,
       totalApprovedKm,
       targetKm,
       progressPercent,
@@ -337,6 +338,11 @@ export const localStore = {
       } else {
         delete user.avatar;
       }
+      db.activities.forEach((a) => {
+        if (a.userId === userId || a.userId === user!.id || a.username.toLowerCase() === user!.username.toLowerCase()) {
+          a.userAvatar = user!.avatar;
+        }
+      });
     }
 
     saveDb(db);
@@ -398,6 +404,7 @@ export const localStore = {
       return {
         userId: m.userId,
         username: u ? u.username : 'Unknown',
+        avatar: u?.avatar,
         joinedAt: m.joinedAt,
         totalApprovedKm: totalKm,
         progressPercent: Math.min(100, Math.round((totalKm / group.targetKm) * 100)),
@@ -419,6 +426,7 @@ export const localStore = {
         return {
           ...a,
           username: resolvedName,
+          userAvatar: a.userAvatar || u?.avatar,
         };
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -733,6 +741,52 @@ export const localStore = {
 
     saveDb(db);
     return { message: 'Activity rejected', activity: act };
+  },
+
+  toggleLikeActivity(activityId: string, userId: string): Activity {
+    const db = getDb();
+    const act = db.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error('Activity not found');
+
+    if (!Array.isArray(act.likes)) {
+      act.likes = [];
+    }
+    const idx = act.likes.indexOf(userId);
+    if (idx >= 0) {
+      act.likes.splice(idx, 1);
+    } else {
+      act.likes.push(userId);
+    }
+
+    saveDb(db);
+    return act;
+  },
+
+  addComment(
+    activityId: string,
+    commentData: { userId: string; username: string; userAvatar?: string; text: string }
+  ): Activity {
+    const db = getDb();
+    const act = db.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error('Activity not found');
+
+    if (!Array.isArray(act.comments)) {
+      act.comments = [];
+    }
+    const newComment: any = {
+      id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: commentData.userId,
+      username: commentData.username,
+      text: commentData.text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    if (commentData.userAvatar) {
+      newComment.userAvatar = commentData.userAvatar;
+    }
+    act.comments.push(newComment);
+
+    saveDb(db);
+    return act;
   },
 
   getUserStats(userId: string): UserStatsResponse {

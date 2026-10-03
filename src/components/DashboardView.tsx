@@ -383,17 +383,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="w-6 text-center text-base">
                       {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
                     </span>
-                    {entry.avatar ? (
-                      <img
-                        src={entry.avatar}
-                        alt={entry.username}
-                        className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shrink-0"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-black text-xs flex items-center justify-center shrink-0">
-                        {entry.username[0]?.toUpperCase()}
-                      </div>
-                    )}
+                    <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-black text-xs flex items-center justify-center">
+                      {entry.username[0]?.toUpperCase()}
+                    </div>
                     <div>
                       <div className="text-xs font-black text-stone-900 flex items-center gap-1.5">
                         <span>{entry.username}</span>
@@ -452,15 +444,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 (act.userId === currentUser.id ? currentUser.username : '') ||
                 'Pelari';
 
+              const runnerAvatar =
+                (act.userId === currentUser.id ? currentUser.avatar : null) ||
+                (activeLeaderboard.find((l) => l.userId === act.userId)?.avatar) ||
+                act.userAvatar;
+
               return (
                 <div
                   key={act.id}
                   className="p-3 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between gap-2"
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
-                      {runnerUsername[0]?.toUpperCase() || 'P'}
-                    </div>
+                    {runnerAvatar ? (
+                      <img
+                        src={runnerAvatar}
+                        alt={runnerUsername}
+                        className="w-8 h-8 rounded-full object-cover border border-stone-200 shadow-2xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center shrink-0">
+                        {runnerUsername[0]?.toUpperCase() || 'P'}
+                      </div>
+                    )}
                     <div>
                       <div className="text-xs font-black text-stone-900">
                         {runnerUsername}

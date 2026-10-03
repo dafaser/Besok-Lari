@@ -742,7 +742,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                               <img
                                 src={entry.avatar}
                                 alt={entry.username}
-                                className="w-8 h-8 rounded-full object-cover border border-stone-300 shrink-0"
+                                className="w-8 h-8 rounded-full object-cover shrink-0 border border-stone-300 shadow-2xs"
                               />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center shrink-0">
@@ -817,7 +817,7 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
                       <img
                         src={m.avatar}
                         alt={m.username}
-                        className="w-10 h-10 rounded-full object-cover border border-emerald-500/40 shrink-0"
+                        className="w-10 h-10 rounded-full object-cover shrink-0 border border-stone-300 shadow-2xs"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center font-bold text-sm shrink-0">
