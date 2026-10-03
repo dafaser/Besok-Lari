@@ -98,9 +98,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                   {/* Runner Info */}
                   <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                     <div className="relative mb-1">
-                      <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-slate-300 via-slate-100 to-white text-slate-800 font-black text-sm sm:text-base flex items-center justify-center border-2 border-slate-300 shadow-md">
-                        {top2.username[0]?.toUpperCase()}
-                      </div>
+                      {top2.avatar ? (
+                        <img
+                          src={top2.avatar}
+                          alt={top2.username}
+                          className="w-11 h-11 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-slate-300 shadow-md"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-slate-300 via-slate-100 to-white text-slate-800 font-black text-sm sm:text-base flex items-center justify-center border-2 border-slate-300 shadow-md">
+                          {top2.username[0]?.toUpperCase()}
+                        </div>
+                      )}
                       <span className="absolute -bottom-1 -right-1 text-sm sm:text-base">
                         🥈
                       </span>
@@ -162,9 +170,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                   {/* Runner Info */}
                   <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                     <div className="relative mb-1">
-                      <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-yellow-100 text-stone-900 font-black text-base sm:text-xl flex items-center justify-center border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30">
-                        {top1.username[0]?.toUpperCase()}
-                      </div>
+                      {top1.avatar ? (
+                        <img
+                          src={top1.avatar}
+                          alt={top1.username}
+                          className="w-14 h-14 sm:w-18 sm:h-18 rounded-full object-cover border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-yellow-100 text-stone-900 font-black text-base sm:text-xl flex items-center justify-center border-3 border-amber-300 shadow-xl shadow-amber-500/30 ring-4 ring-amber-400/30">
+                          {top1.username[0]?.toUpperCase()}
+                        </div>
+                      )}
                       <span className="absolute -bottom-1 -right-1 text-base sm:text-xl">
                         🥇
                       </span>
@@ -214,9 +230,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                   {/* Runner Info */}
                   <div className="flex flex-col items-center text-center mb-2 w-full px-1">
                     <div className="relative mb-1">
-                      <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-200 text-white font-black text-xs sm:text-sm flex items-center justify-center border-2 border-amber-600 shadow-md">
-                        {top3.username[0]?.toUpperCase()}
-                      </div>
+                      {top3.avatar ? (
+                        <img
+                          src={top3.avatar}
+                          alt={top3.username}
+                          className="w-10 h-10 sm:w-13 sm:h-13 rounded-full object-cover border-2 border-amber-600 shadow-md"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-200 text-white font-black text-xs sm:text-sm flex items-center justify-center border-2 border-amber-600 shadow-md">
+                          {top3.username[0]?.toUpperCase()}
+                        </div>
+                      )}
                       <span className="absolute -bottom-1 -right-1 text-sm sm:text-base">
                         🥉
                       </span>
@@ -314,9 +338,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                     </div>
 
                     {/* Avatar & Name */}
-                    <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center shrink-0">
-                      {entry.username[0]?.toUpperCase()}
-                    </div>
+                    {entry.avatar ? (
+                      <img
+                        src={entry.avatar}
+                        alt={entry.username}
+                        className="w-8 h-8 rounded-full object-cover border border-stone-300 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center shrink-0">
+                        {entry.username[0]?.toUpperCase()}
+                      </div>
+                    )}
 
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">

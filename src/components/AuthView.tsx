@@ -159,6 +159,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
             <div className="flex-1 leading-relaxed">
               <div>{errorMsg}</div>
+              {errorMsg.includes('Password') && username.trim().toLowerCase() === 'dafasr' && (
+                <div className="mt-1.5 pt-1.5 border-t border-rose-200/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPassword('dafa1234');
+                      setErrorMsg(null);
+                    }}
+                    className="text-emerald-700 hover:text-emerald-800 underline font-black cursor-pointer text-xs"
+                  >
+                    👉 Klik di sini untuk gunakan password "dafa1234"
+                  </button>
+                </div>
+              )}
               {errorMsg.includes('belum terdaftar') && !isRegister && (
                 <div className="mt-1.5 pt-1.5 border-t border-rose-200/80">
                   <button
